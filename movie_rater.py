@@ -23,6 +23,8 @@
 from rottentomatoes import RT
 import os
 import sys
+import requests
+import json
 
 if len(sys.argv) != 3:
     print "Usage: ./movie_rater.py dirname threshold"
@@ -37,10 +39,18 @@ movielist = os.listdir(searchdir)
 
 movielist.sort()
 
+
+def omdbsearch(title):
+
+    data = json.loads(requests.get("http://omdbapi.com/?t=" + title + "&r=json").text)
+    #print str(data)
+    return data
+
+
 keepcount = 0
 deletecount = 0
 
-breakwords = ['720P','1080P','PROPER','DC','REPACK','LIMITED','REMASTERED','INTERNAL','RERIP','EXTENDED','THEATRICAL']
+breakwords = ['720P','1080P','PROPER','DC','REPACK','LIMITED','REMASTERED','INTERNAL','RERIP','EXTENDED','THEATRICAL', 'UNRATED']
 
 for movie in movielist:
     title = []
@@ -63,6 +73,24 @@ for movie in movielist:
     fulltitle = ' '.join(title)
 
     results = myrt.search(fulltitle)
+
+    omdb = omdbsearch(fulltitle)
+
+
+    try:
+        genres = omdb["Genre"]
+    except:
+        genres = ""
+
+    if "comedy" in genres.lower():
+        #print "DELETE " + fulltitle.upper() + " ASAP! COMEDY FOUND!"
+        comedyflag = True
+    
+    else:
+        #print "Title: " + fulltitle + " Genres: " + genres
+        comedyflag = False
+
+
 
     if len(results) == 0:
         results = myrt.search('.'.join(title))
@@ -93,7 +121,7 @@ for movie in movielist:
     avgrating = sum(ratings) / float(len(ratings))
     
     
-    if avgrating < keepthreshold:
+    if avgrating < keepthreshold and comedyflag == True:
         print "%s has %d critic ratings, averaging %0.1f. better delete it!" % (fulltitle,len(ratings),avgrating)
         deletecount +=1
     else:
@@ -101,4 +129,6 @@ for movie in movielist:
         keepcount +=1
 
 print "of %d movies, %d have over %d rating on RT." % (len(movielist),keepcount,keepthreshold)
+
+
 
