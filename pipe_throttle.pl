@@ -1,5 +1,21 @@
 #!/usr/bin/perl
 
+##########
+#
+# (c) Anthony Vaccaro, 2015
+#
+# pipe_throttle.pl - this script prints stdin to stdout, 
+# but throttles the speed of the throughput to the limit set
+# in the arguments. It is very simple but works well enough.
+# 
+# You are probably better off using something called "throttle"
+# which can be found at the links below:
+#
+# http://klicman.org/default_007.html
+# http://pkgs.fedoraproject.org/repo/pkgs/throttle/throttle-1.2.tar.gz/
+#
+##########
+
 use strict;
 use warnings;
 
