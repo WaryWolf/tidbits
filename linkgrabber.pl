@@ -124,7 +124,8 @@ sub download_url {
     $strippedurl =~ s/^([^?]*)\?.*/$1/ if ($strippedurl =~ /\?/);
 
     # remove the ":large" stuff too (found in twitter image urls)
-    $strippedurl =~ s/^([^:]*)\:.*/$1/ if ($strippedurl =~ /\:/);
+    # whoops, i forgot that there's a colon in 'http://'
+    $strippedurl =~ s/(.*):(.*)/$1/ if ($strippedurl =~ /(\:large$|\:orig$)/);
 
 
     my $size = $head->header("Content-Length");
