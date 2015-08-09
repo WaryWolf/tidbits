@@ -8,7 +8,10 @@
 # and downloads any images posted to the list, to an "images"
 # folder. It requires an API key, which can be acquired at 
 # https://apps.twitter.com/app/new .
-#
+# 
+# Now saves information about the tweet the image was attached to
+# in the image metadata. This script was written for my true bud,
+# Heaud (http://twitter.com/RobHued).
 #
 ######################################
 
@@ -21,6 +24,8 @@ use LWP::UserAgent;
 use Time::HiRes 'gettimeofday';
 use POSIX 'strftime';
 use IO::Handle;
+use Image::ExifTool;
+#use open ':std', ':encoding(UTF-8)';
 
 my $ua = new LWP::UserAgent;
 
@@ -121,6 +126,32 @@ while(1) {
     $lastid = @$list[0]->{'id'} if (scalar @$list > 0);
 
     foreach my $tweet (@$list) {
+        #print Dumper($tweet);
+
+        # username = full username
+        # handle = @user
+        # description = tweet text
+        my $username;
+        my $handle;
+        my $description;
+        my $tweetid;
+        my $tweeturl;
+        # if it's a retweet, assign ownership properly
+        if (exists($tweet->{'retweeted_status'})) {
+            $username = $tweet->{'retweeted_status'}->{'user'}->{'name'};
+            $handle = $tweet->{'retweeted_status'}->{'user'}->{'screen_name'};
+            $description = $tweet->{'retweeted_status'}->{'text'};
+            $tweetid = $tweet->{'retweeted_status'}->{'id_str'};
+        } else {
+            $username = $tweet->{'user'}->{'name'};
+            $handle = $tweet->{'user'}->{'screen_name'};
+            $description = $tweet->{'text'};
+            $tweetid = $tweet->{'id_str'};
+        }
+
+        $tweeturl = "https://twitter.com/$handle/status/$tweetid";
+
+
         next if (!exists($tweet->{'entities'}));
         next if (!exists($tweet->{'entities'}->{'media'}));
         my $medias = $tweet->{'entities'}->{'media'};
@@ -135,7 +166,16 @@ while(1) {
                 $url = $media->{'media_url'};
             }
             
+            # skip video thumbnails
+            next if $url =~ /video/;
+
+
+            # remove the suffix from the tweet url
+            #$tweeturl =~ s/([A-Z]*)\/photo\/\d$/$1/;
+
             (my $strippedurl = $url) =~ s/\//-/g;
+
+            $strippedurl = substr $strippedurl, 7;
 
             $url .= ":orig";
             
@@ -146,7 +186,17 @@ while(1) {
                 next;
             }
 
-            my $imgname = "$outpath/$strippedurl";
+            if (!-d "$outpath/$handle") {
+                print_and_log("creating $handle\n");
+                mkdir "$outpath/$handle";
+            }
+
+            my $imgname = "$outpath/$handle/$strippedurl";
+
+            if (-e $imgname) {
+                print_and_log("not overwriting $imgname");
+                next;
+            }
 
             open (my $fh, ">", $imgname)
                 or do {
@@ -158,6 +208,22 @@ while(1) {
             $imgcount++;
             close $fh;
 
+            # save metadata to image
+            my $et = new Image::ExifTool;
+            #$et->Options(PNGEarlyXMP => 1);
+            my $info = $et->ImageInfo($imgname);
+            #$et->SetNewGroups('XMP', 'EXIF', 'IPTC');
+            $et->SetNewValue('XMP:Creator', $username);
+            $et->SetNewValue('XMP:Description', $description);
+            $et->SetNewValue('XMP:Source', $tweeturl);
+            my $err = $et->WriteInfo($imgname);
+
+            if ($err != 1) {
+                my $warn = $et->GetValue('Warning');
+                my $errmsg = $et->GetValue('Error');
+                print_and_log("WARNING: $warn") if $warn;
+                print_and_log("ERROR: $errmsg") if $errmsg;
+            }
         }
     }
 
