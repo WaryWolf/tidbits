@@ -25,6 +25,8 @@ use Time::HiRes 'gettimeofday';
 use POSIX 'strftime';
 use IO::Handle;
 use Image::ExifTool;
+use Fcntl qw(:DEFAULT :flock :seek);
+
 #use open ':std', ':encoding(UTF-8)';
 
 my $ua = new LWP::UserAgent;
@@ -65,7 +67,7 @@ if (!$api_key or !$api_secret) {
 }
 
 
-open($log, ">>", "tweetimg.log") or die "couldn't open tweetimg.log\n";
+open($log, ">>", "tweetimg.log") or die "couldn't open tweetimg.log: $!\n";
 
 $log->autoflush;
 
@@ -96,7 +98,14 @@ unless ( $nt->authorized ) {
     exit;
 }
 
-my $lastid = '';
+open(my $lastidfile, "<", "lastid") or die "couldn't open lastid file: $!\n";
+
+my $lastid = <$lastidfile>;
+
+close($lastidfile);
+
+open($lastidfile, ">", "lastid") or die "couldn't open lastid file: $!\n";
+
 
 while(1) {
 
@@ -124,6 +133,9 @@ while(1) {
     }    
 
     $lastid = @$list[0]->{'id'} if (scalar @$list > 0);
+
+    print $lastidfile $lastid;
+    seek($lastidfile, 0, SEEK_SET);
 
     foreach my $tweet (@$list) {
         #print Dumper($tweet);
