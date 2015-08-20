@@ -26,6 +26,8 @@ use POSIX 'strftime';
 use IO::Handle;
 use Image::ExifTool;
 use Fcntl qw(:DEFAULT :flock :seek);
+use Getopt::Long;
+
 
 #use open ':std', ':encoding(UTF-8)';
 
@@ -34,6 +36,8 @@ my $ua = new LWP::UserAgent;
 my $log;
 
 my $outpath = "images";
+
+my %urlhash;
 
 sub print_and_log($);
 
@@ -52,6 +56,19 @@ my $access_token_secret = '';
 # the slug is the name of the list as it appears in URLs (usually all lowercase and spaces replaced by hyphens).
 my $owner = '';
 my $slug = '';
+
+my $userdirs;
+my $tweetcount = 50;
+my $sleep = 180;
+
+GetOptions (
+    "userdirs" => \$userdirs,
+    "count=i" => \$tweetcount,
+    "sleep=i" => \$sleep,
+);
+
+die "bad input for --sleep\n" if (($sleep < 1) or ($sleep > 9999));
+die "bad input for --count\n" if (($tweetcount < 1) or ($tweetcount > 9999));
 
 
 
@@ -98,6 +115,10 @@ unless ( $nt->authorized ) {
     exit;
 }
 
+my $lastidfilename = 'lastid';
+
+`touch $lastidfilename` if (!-e $lastidfilename);
+
 open(my $lastidfile, "<", "lastid") or die "couldn't open lastid file: $!\n";
 
 my $lastid = <$lastidfile>;
@@ -119,7 +140,7 @@ while(1) {
                 "slug"                  => $slug,
                 "include_entities"      => "true",
                 "include_rts"           => "true",
-                "count"                 => 50,
+                "count"                 => $tweetcount,
                 "since_id"              => $lastid
         });
     } else {
@@ -128,17 +149,18 @@ while(1) {
                 "slug"              => $slug,
                 "include_entities"  => "true",
                 "include_rts"       => "true",
-                "count"             => 50
+                "count"             => $tweetcount
         });
     }    
 
     $lastid = @$list[0]->{'id'} if (scalar @$list > 0);
 
-    print $lastidfile $lastid;
-    seek($lastidfile, 0, SEEK_SET);
 
     foreach my $tweet (@$list) {
         #print Dumper($tweet);
+        
+        
+        undef %urlhash;
 
         # username = full username
         # handle = @user
@@ -163,89 +185,32 @@ while(1) {
 
         $tweeturl = "https://twitter.com/$handle/status/$tweetid";
 
-
+    
         next if (!exists($tweet->{'entities'}));
         next if (!exists($tweet->{'entities'}->{'media'}));
-        my $medias = $tweet->{'entities'}->{'media'};
+        my $medias = $tweet->{'extended_entities'}->{'media'};
         foreach my $media (@$medias) {
-            next if ((!exists($media->{'media_url'})) and (!exists($media->{'media_url_https'})));
-            
-            my $url;
-            
-            if (!exists($media->{'media_url_https'})) {
-                $url = $media->{'media_url_https'};
-            } else {
-                $url = $media->{'media_url'};
-            }
-            
-            # skip video thumbnails
-            next if $url =~ /video/;
-
-
-            # remove the suffix from the tweet url
-            #$tweeturl =~ s/([A-Z]*)\/photo\/\d$/$1/;
-
-            (my $strippedurl = $url) =~ s/\//-/g;
-
-            $strippedurl = substr $strippedurl, 7;
-
-            $url .= ":orig";
-            
-            my $res = $ua->get($url);
-
-            if (!$res->is_success) {
-                print_and_log("error downloading $url: $res->status_line");
-                next;
-            }
-
-            if (!-d "$outpath/$handle") {
-                print_and_log("creating $handle\n");
-                mkdir "$outpath/$handle";
-            }
-
-            my $imgname = "$outpath/$handle/$strippedurl";
-
-            if (-e $imgname) {
-                print_and_log("not overwriting $imgname");
-                next;
-            }
-
-            open (my $fh, ">", $imgname)
-                or do {
-                    print_and_log("cannot open \"$imgname\" for writing: $!");
-                    next;
-                };
-            print_and_log("saving $url");
-            print $fh $res->content;
-            $imgcount++;
-            close $fh;
-
-            # save metadata to image
-            my $et = new Image::ExifTool;
-            #$et->Options(PNGEarlyXMP => 1);
-            my $info = $et->ImageInfo($imgname);
-            #$et->SetNewGroups('XMP', 'EXIF', 'IPTC');
-            $et->SetNewValue('XMP:Creator', $username);
-            $et->SetNewValue('XMP:Description', $description);
-            $et->SetNewValue('XMP:Source', $tweeturl);
-            my $err = $et->WriteInfo($imgname);
-
-            if ($err != 1) {
-                my $warn = $et->GetValue('Warning');
-                my $errmsg = $et->GetValue('Error');
-                print_and_log("WARNING: $warn") if $warn;
-                print_and_log("ERROR: $errmsg") if $errmsg;
-            }
+            $imgcount += grab_tweet_image($username, $handle, $description, $tweetid, $tweeturl, $media);
         }
+        $medias = $tweet->{'entities'}->{'media'};
+        foreach my $media (@$medias) {
+            $imgcount += grab_tweet_image($username, $handle, $description, $tweetid, $tweeturl, $media);
+        }
+        my $urlcount = scalar keys %urlhash;
+        print "got $urlcount imgs\n";
     }
 
+
+    print $lastidfile $lastid;
+    seek($lastidfile, 0, SEEK_SET);
+    
     my $dur = gettimeofday() - $start;
 
-    my $msg = sprintf("saved %d images in %.2f seconds. Sleeping for 3 minutes...\n", $imgcount, $dur);
+    my $msg = sprintf("saved %d images in %.2f seconds. Sleeping for $sleep seconds...\n", $imgcount, $dur);
 
-    print_and_log($msg);
+    print_and_log($msg) if ($imgcount > 0);
 
-    sleep(180);
+    sleep($sleep);
 
 }
 
@@ -254,6 +219,99 @@ while(1) {
 
 
 #### SUBROUTINES
+
+sub grab_tweet_image {
+
+    my ($username, $handle, $description, $tweetid, $tweeturl, $media) = @_;
+
+
+    return 0 if ((!exists($media->{'media_url'})) and (!exists($media->{'media_url_https'})));
+    
+    my $url;
+    
+    if (!exists($media->{'media_url_https'})) {
+        $url = $media->{'media_url_https'};
+    } else {
+        $url = $media->{'media_url'};
+    }
+    
+    # skip video thumbnails
+    return 0 if $url =~ /video/;
+
+
+    # remove the suffix from the tweet url
+    #$tweeturl =~ s/([A-Z]*)\/photo\/\d$/$1/;
+
+    (my $strippedurl = $url) =~ s/\//-/g;
+
+    $strippedurl = substr $strippedurl, 7;
+
+    $url .= ":orig";
+    
+
+    # if we already saw this url for this tweet already, don't download it.
+    return 0 if (exists($urlhash{$url}));
+
+    my $res = $ua->get($url);
+
+    if (!$res->is_success) {
+        print_and_log("error downloading $url: $res->status_line");
+        return 0;
+    }
+
+    my $imgname;
+
+    if ($userdirs) {
+
+        if (!-d "$outpath/$handle") {
+            print_and_log("creating $handle\n");
+            mkdir "$outpath/$handle";
+        }
+
+        $imgname = "$outpath/$handle/$strippedurl";
+
+    } else {
+
+        $imgname = "$outpath/$strippedurl";
+    }
+
+    if (-e $imgname) {
+        print_and_log("not overwriting $imgname");
+        return 0;
+    }
+
+    open (my $fh, ">", $imgname)
+        or do {
+            print_and_log("cannot open \"$imgname\" for writing: $!");
+            return 0;
+        };
+    print_and_log("saving $url");
+
+    #save the url to the urlhash.
+    $urlhash{$url} = 1;
+
+    print $fh $res->content;
+    #$imgcount++;
+    close $fh;
+
+    # save metadata to image
+    my $et = new Image::ExifTool;
+    #$et->Options(PNGEarlyXMP => 1);
+    my $info = $et->ImageInfo($imgname);
+    #$et->SetNewGroups('XMP', 'EXIF', 'IPTC');
+    $et->SetNewValue('XMP:Creator', $username);
+    $et->SetNewValue('XMP:Description', $description);
+    $et->SetNewValue('XMP:Source', $tweeturl);
+    my $err = $et->WriteInfo($imgname);
+
+    if ($err != 1) {
+        my $warn = $et->GetValue('Warning');
+        my $errmsg = $et->GetValue('Error');
+        print_and_log("WARNING: $warn") if $warn;
+        print_and_log("ERROR: $errmsg") if $errmsg;
+    }
+    return 1;
+}
 
 sub print_and_log ($) {
     my $msg = shift;
