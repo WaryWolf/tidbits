@@ -29,13 +29,11 @@ use Fcntl qw(:DEFAULT :flock :seek);
 use Getopt::Long;
 
 
-#use open ':std', ':encoding(UTF-8)';
+
 
 my $ua = new LWP::UserAgent;
 
 my $log;
-
-my $outpath = "images";
 
 my %urlhash;
 
@@ -57,14 +55,17 @@ my $access_token_secret = '';
 my $owner = '';
 my $slug = '';
 
+my $outpath = "images";
 my $userdirs;
 my $tweetcount = 50;
 my $sleep = 180;
 
+# Checks for custom user commands that were added at the call of the script. 
 GetOptions (
-    "userdirs" => \$userdirs,
-    "count=i" => \$tweetcount,
-    "sleep=i" => \$sleep,
+	"outpath=s" => \$outpath,	#--outpath "string" sets custom directory to save images in
+    "userdirs" => \$userdirs,	#--userdirs enables saving images within directories sorted by Twitter handle
+    "count=i" => \$tweetcount,	#--count "integer" sets amount of tweets to parse within each cylce
+    "sleep=i" => \$sleep,		#--sleep "integer" sets duration to sleep in seconds
 );
 
 die "bad input for --sleep\n" if (($sleep < 1) or ($sleep > 9999));
@@ -157,7 +158,7 @@ while(1) {
 
 
     foreach my $tweet (@$list) {
-        #print Dumper($tweet);
+        #print Dumper($tweet);	# used for debugging
         
         
         undef %urlhash;
@@ -239,8 +240,8 @@ sub grab_tweet_image {
     return 0 if $url =~ /video/;
 
 
-    # remove the suffix from the tweet url
-    #$tweeturl =~ s/([A-Z]*)\/photo\/\d$/$1/;
+    
+    
 
     (my $strippedurl = $url) =~ s/\//-/g;
 
@@ -291,14 +292,14 @@ sub grab_tweet_image {
     $urlhash{$url} = 1;
 
     print $fh $res->content;
-    #$imgcount++;
+    
     close $fh;
 
     # save metadata to image
     my $et = new Image::ExifTool;
-    #$et->Options(PNGEarlyXMP => 1);
+    
     my $info = $et->ImageInfo($imgname);
-    #$et->SetNewGroups('XMP', 'EXIF', 'IPTC');
+    
     $et->SetNewValue('XMP:Creator', $username);
     $et->SetNewValue('XMP:Description', $description);
     $et->SetNewValue('XMP:Source', $tweeturl);
