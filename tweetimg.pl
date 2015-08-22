@@ -18,8 +18,7 @@
 use strict;
 use warnings;
 
-use Net::Twitter;
-use Data::Dumper;
+use Net::Twitter::Lite::WithAPIv1_1;
 use LWP::UserAgent;
 use Time::HiRes 'gettimeofday';
 use POSIX 'strftime';
@@ -30,8 +29,6 @@ use Getopt::Long;
 
 
 
-
-my $ua = new LWP::UserAgent;
 
 my $log;
 
@@ -62,7 +59,7 @@ my $sleep = 180;
 
 # Checks for custom user commands that were added at the call of the script. 
 GetOptions (
-	"outpath=s" => \$outpath,	#--outpath "string" sets custom directory to save images in
+    "outpath=s" => \$outpath,	#--outpath "string" sets custom directory to save images in
     "userdirs" => \$userdirs,	#--userdirs enables saving images within directories sorted by Twitter handle
     "count=i" => \$tweetcount,	#--count "integer" sets amount of tweets to parse within each cylce
     "sleep=i" => \$sleep,		#--sleep "integer" sets duration to sleep in seconds
@@ -90,10 +87,12 @@ open($log, ">>", "tweetimg.log") or die "couldn't open tweetimg.log: $!\n";
 $log->autoflush;
 
 
-my $nt = Net::Twitter->new(
-    traits          => [ 'OAuth', 'API::RESTv1_1' ],
-    consumer_key    => $api_key,
-    consumer_secret => $api_secret,
+my $nt = Net::Twitter::Lite::WithAPIv1_1->new(
+    traits              => [ 'OAuth', 'API::RESTv1_1' ],
+    consumer_key        => $api_key,
+    consumer_secret     => $api_secret,
+    legacy_lists_api    => 0,
+    ssl                 => 1,
 );
 
 if ($access_token && $access_token_secret) {
@@ -120,7 +119,7 @@ my $lastidfilename = 'lastid';
 
 `touch $lastidfilename` if (!-e $lastidfilename);
 
-open(my $lastidfile, "<", "lastid") or die "couldn't open lastid file: $!\n";
+open(my $lastidfile, "<", $lastidfilename) or die "couldn't open lastid file: $!\n";
 
 my $lastid = <$lastidfile>;
 
@@ -158,9 +157,6 @@ while(1) {
 
 
     foreach my $tweet (@$list) {
-        #print Dumper($tweet);	# used for debugging
-        
-        
         undef %urlhash;
 
         # username = full username
@@ -197,8 +193,6 @@ while(1) {
         foreach my $media (@$medias) {
             $imgcount += grab_tweet_image($username, $handle, $description, $tweetid, $tweeturl, $media);
         }
-        my $urlcount = scalar keys %urlhash;
-        print "got $urlcount imgs\n";
     }
 
 
@@ -226,6 +220,7 @@ sub grab_tweet_image {
     my ($username, $handle, $description, $tweetid, $tweeturl, $media) = @_;
 
 
+    my $ua = new LWP::UserAgent;
     return 0 if ((!exists($media->{'media_url'})) and (!exists($media->{'media_url_https'})));
     
     my $url;
