@@ -6,6 +6,7 @@
     This doop heens its way around argv[0]
     and looks cool in "top", "ps" and similar programs.
     You will have to press "c" in top to see the result.
+    "d1<Enter>" is also recommended.
 
     compile like this:
 
