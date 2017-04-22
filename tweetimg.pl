@@ -5,13 +5,16 @@
 # tweetimg.pl - (c) Anthony Vaccaro, 2015
 #
 # This perl script periodically checks a Twitter "list"
-# and downloads any images posted to the list, to an "images"
-# folder. It requires an API key, which can be acquired at 
+# and downloads any images posted to the list.
+# An API key is needed which can be acquired at 
 # https://apps.twitter.com/app/new .
 # 
 # Now saves information about the tweet the image was attached to
 # in the image metadata. This script was written for my true bud,
 # Heaud (http://twitter.com/RobHued).
+#
+#
+# Note: This version has the while loop removed.
 #
 ######################################
 
@@ -26,8 +29,7 @@ use IO::Handle;
 use Image::ExifTool;
 use Fcntl qw(:DEFAULT :flock :seek);
 use Getopt::Long;
-
-
+use Config::Simple;
 
 
 my $log;
@@ -37,55 +39,50 @@ my %urlhash;
 sub print_and_log($);
 
 
-# FILL IN THESE SIX VARIABLES TO MAKE THE PROGRAM "WORK".
 
-# you get these by signing up to the twitter API at https://apps.twitter.com/app/new .
-my $api_key = '';
-my $api_secret = '';
-
-# you get these by running the program and following the instructions to auth the app.
-my $access_token = '';
-my $access_token_secret = '';
-
-# add the list information here. the owner is the twitter handle of the owner of the list.
-# the slug is the name of the list as it appears in URLs (usually all lowercase and spaces replaced by hyphens).
-my $owner = '';
-my $slug = '';
-
-my $outpath = "images";
-my $userdirs;
-my $tweetcount = 50;
-my $sleep = 180;
-
-# Checks for custom user commands that were added at the call of the script. 
-GetOptions (
-    "outpath=s" => \$outpath,	#--outpath "string" sets custom directory to save images in
-    "userdirs" => \$userdirs,	#--userdirs enables saving images within directories sorted by Twitter handle
-    "count=i" => \$tweetcount,	#--count "integer" sets amount of tweets to parse within each cylce
-    "sleep=i" => \$sleep,		#--sleep "integer" sets duration to sleep in seconds
-);
-
-die "bad input for --sleep\n" if (($sleep < 1) or ($sleep > 9999));
-die "bad input for --count\n" if (($tweetcount < 1) or ($tweetcount > 9999));
+my $cfile = 'tweetimg.cfg';
+my $cfg = new Config::Simple(syntax=>'http');
 
 
+#Load from configuration file and assign values
+$cfg->read($cfile) or die "Unable to open $cfile." if (-e $cfile);
+my $api_key = $cfg->param("api_key");
+my $api_secret = $cfg->param("api_secret");
+my $access_token = $cfg->param("access_token");
+my $access_token_secret = $cfg->param("access_token_secret");
+my @slugs = $cfg->param("slugs");
+my $outpath = $cfg->param("outpath");
+my $userdirs = $cfg->param("userdirs");
+my $tweetcount = $cfg->param("tweetcount");
+my $include_retweets = $cfg->param("retweets");
+my %slughash;
 
-if (!$owner or !$slug) {
-    print "did you forget to set the list info in the source file?\n";
-    exit;
+
+print "Twitter API keys are missing from the configuration file. Please sign up at https://apps.twitter.com/app/new and obtain your API keys.\n" if (!$api_key or !$api_secret);
+
+until ($api_key) {
+    print "Please enter your API key.\nAPI key: ";
+    $api_key = <STDIN>;
+    chomp $api_key;
+    $cfg->param('api_key', $api_key);
+}
+
+until ($api_secret) {
+    print "Please enter your API secret key.\nAPI secret: ";
+    $api_secret = <STDIN>;
+    chomp $api_secret;
+    $cfg->param('api_secret', $api_secret);
 }
 
 
-if (!$api_key or !$api_secret) {
-    print "go to https://apps.twitter.com/app/new, sign up for an API key/secret, and put that key in the source code.\n";
-    exit;
-}
+$cfg->write($cfile) or die "Unable to write $cfile.";
 
-
-open($log, ">>", "tweetimg.log") or die "couldn't open tweetimg.log: $!\n";
-
+mkdir "logs" unless (-d "logs");
+my $filename = strftime("logs/tweetimg-%Y-%m.log", localtime);
+open($log, ">>", $filename) or die "Unable to open log file: $!\n";
 $log->autoflush;
 
+print_and_log("starting run.");
 
 my $nt = Net::Twitter::Lite::WithAPIv1_1->new(
     traits              => [ 'OAuth', 'API::RESTv1_1' ],
@@ -100,116 +97,173 @@ if ($access_token && $access_token_secret) {
     $nt->access_token_secret($access_token_secret);
 }
 
+#API authorization check
 unless ( $nt->authorized ) {
-    # The client is not yet authorized: Do it now
-    print "Authorize this app at ", $nt->get_authorization_url, " and enter the PIN number below:\n";
+    print "\nClient has not been authorized. Visit ", $nt->get_authorization_url, " to grant access. Obtain the PIN from the website and enter it below.\nPIN: ";
 
-    my $pin = <STDIN>; # wait for input
+    my $pin = <STDIN>;
     chomp $pin;
 
     my($access_token, $access_token_secret, $user_id, $screen_name) = $nt->request_access_token(verifier => $pin);
-
-    print "access_token = $access_token\n";
-    print "access_token_secret = $access_token_secret\n";
-    print "put those into your source and run again...\n";
-    exit;
+    
+    $cfg->param('access_token', $access_token);
+    $cfg->param('access_token_secret', $access_token_secret);
 }
 
-my $lastidfilename = 'lastid';
-
-`touch $lastidfilename` if (!-e $lastidfilename);
-
-open(my $lastidfile, "<", $lastidfilename) or die "couldn't open lastid file: $!\n";
-
-my $lastid = <$lastidfile>;
-
-close($lastidfile);
-
-open($lastidfile, ">", "lastid") or die "couldn't open lastid file: $!\n";
+until ($tweetcount) {
+    $tweetcount = 60;
+    $cfg->param('tweetcount', $tweetcount);
+}
 
 
-while(1) {
-
-    my $list;
-    my $imgcount = 0;
-    my $start = gettimeofday();
-
-    if ($lastid) {
-        $list = $nt->list_statuses({    
-                "owner_screen_name"     => $owner,
-                "slug"                  => $slug,
-                "include_entities"      => "true",
-                "include_rts"           => "true",
-                "count"                 => $tweetcount,
-                "since_id"              => $lastid
-        });
-    } else {
-        $list = $nt->list_statuses({
-                "owner_screen_name" => $owner,
-                "slug"              => $slug,
-                "include_entities"  => "true",
-                "include_rts"       => "true",
-                "count"             => $tweetcount
-        });
-    }    
-
-    $lastid = @$list[0]->{'id'} if (scalar @$list > 0);
+$cfg->write($cfile) or die "Unable to write $cfile.";
 
 
-    foreach my $tweet (@$list) {
-        undef %urlhash;
-
-        # username = full username
-        # handle = @user
-        # description = tweet text
-        my $username;
-        my $handle;
-        my $description;
-        my $tweetid;
-        my $tweeturl;
-        # if it's a retweet, assign ownership properly
-        if (exists($tweet->{'retweeted_status'})) {
-            $username = $tweet->{'retweeted_status'}->{'user'}->{'name'};
-            $handle = $tweet->{'retweeted_status'}->{'user'}->{'screen_name'};
-            $description = $tweet->{'retweeted_status'}->{'text'};
-            $tweetid = $tweet->{'retweeted_status'}->{'id_str'};
-        } else {
-            $username = $tweet->{'user'}->{'name'};
-            $handle = $tweet->{'user'}->{'screen_name'};
-            $description = $tweet->{'text'};
-            $tweetid = $tweet->{'id_str'};
-        }
-
-        $tweeturl = "https://twitter.com/$handle/status/$tweetid";
-
+until (@slugs) {
+    print "Please enter the list title and list creator's handle separated by a space. Multiple lists can be added by separating each entry with a comma. (example-list creator1, second-list creator2)\nTitle & creator: ";
+    my $input = <STDIN>;
+    chomp $input;
     
-        next if (!exists($tweet->{'entities'}));
-        next if (!exists($tweet->{'entities'}->{'media'}));
-        my $medias = $tweet->{'extended_entities'}->{'media'};
-        foreach my $media (@$medias) {
-            $imgcount += grab_tweet_image($username, $handle, $description, $tweetid, $tweeturl, $media);
+    #Prepare the input
+    $input =~ s/, /,/g; 
+    my $list;
+    foreach my $entry(split(/,/, $input)) {
+        my ($l,$c) = split(/ /, $entry);
+        $list .= $entry . ',' if ($l and $c);
+    }
+    chop $list;
+    
+    #Write and reopen so that the value becomes an array
+    $cfg->param("slugs", $list);
+    $cfg->write($cfile) or die "Unable to write $cfile.";
+    $cfg->read($cfile) or die "Unable to open $cfile.";
+    @slugs = $cfg->param("slugs");
+
+}
+
+#Converts array from cfg into hash
+foreach (@slugs) {
+    my ($l,$c) = split(/ /, $_);
+    $slughash{$l} = $c;
+}
+
+
+my %state;
+my $statefile;
+if (-e "tweetimg.state") {
+    open ($statefile, "<", "tweetimg.state") or die "couldn't open state file: $!\n";
+    while (my $line = <$statefile>) {
+        chomp $line;
+        my @fields = split(/ /, $line);
+        my $slugname = $fields[0];
+        my $lastid = $fields[1];
+        $state{$slugname} = $lastid;
+    }
+    close $statefile;
+}
+#Parse the tweets
+    my $imgcountsum;
+
+
+
+    foreach my $slugtitle(keys %slughash) {
+        my $slugowner = $slughash{$slugtitle};
+        $outpath = "images/$slugtitle";
+        #note: implement File::Path::Tiny
+        mkdir "images" unless (-d "images");
+        mkdir $outpath unless (-d $outpath);
+        my $lastid;
+        if (exists($state{$slugtitle})) {
+            $lastid = $state{$slugtitle};
+        } else {
+            $lastid = 0;
         }
-        $medias = $tweet->{'entities'}->{'media'};
-        foreach my $media (@$medias) {
-            $imgcount += grab_tweet_image($username, $handle, $description, $tweetid, $tweeturl, $media);
+        
+        my $list;
+        my $imgcount = 0;
+        my $start = gettimeofday();
+
+        if ($lastid) {
+            $list = $nt->list_statuses({    
+                    "owner_screen_name"     => $slugowner,
+                    "slug"                  => $slugtitle,
+                    "include_entities"      => "true",
+                    "include_rts"           => $include_retweets,
+                    "count"                 => $tweetcount,
+                    "since_id"              => $lastid
+            });
+        } else {
+            $list = $nt->list_statuses({
+                    "owner_screen_name" => $slugowner,
+                    "slug"              => $slugtitle,
+                    "include_entities"  => "true",
+                    "include_rts"       => $include_retweets,
+                    "count"             => $tweetcount
+            });
+        }    
+
+        $lastid = @$list[0]->{'id'} if (scalar @$list > 0);
+
+        #Start searching tweets
+        print_and_log("Searching $slugtitle for new images...\n");
+        foreach my $tweet (@$list) {
+            undef %urlhash;
+
+            # username = full username
+            # handle = @user
+            # description = tweet text
+            my $username;
+            my $handle;
+            my $description;
+            my $tweetid;
+            my $tweeturl;
+            # if it's a retweet, assign ownership properly
+            if (exists($tweet->{'retweeted_status'})) {
+                $username = $tweet->{'retweeted_status'}->{'user'}->{'name'};
+                $handle = $tweet->{'retweeted_status'}->{'user'}->{'screen_name'};
+                $description = $tweet->{'retweeted_status'}->{'text'};
+                $tweetid = $tweet->{'retweeted_status'}->{'id_str'};
+            } else {
+                $username = $tweet->{'user'}->{'name'};
+                $handle = $tweet->{'user'}->{'screen_name'};
+                $description = $tweet->{'text'};
+                $tweetid = $tweet->{'id_str'};
+            }
+
+            $tweeturl = "https://twitter.com/$handle/status/$tweetid";
+
+        
+            next if (!exists($tweet->{'entities'}));
+            next if (!exists($tweet->{'entities'}->{'media'}));
+            my $medias = $tweet->{'extended_entities'}->{'media'};
+            foreach my $media (@$medias) {
+                $imgcount += grab_tweet_image($username, $handle, $description, $tweetid, $tweeturl, $media);
+            }
+            $medias = $tweet->{'entities'}->{'media'};
+            foreach my $media (@$medias) {
+                $imgcount += grab_tweet_image($username, $handle, $description, $tweetid, $tweeturl, $media);
+            }
         }
+
+        $state{$slugtitle} = $lastid;
+    
+        my $dur = gettimeofday() - $start;
+
+        my $msg = sprintf("Saved %d images from $slugtitle in %.2f seconds.", $imgcount, $dur);
+        
+        print_and_log($msg) if ($imgcount > 0);
+        
+        $imgcountsum += $imgcount;
     }
 
+print_and_log("saving lastids...");
 
-    print $lastidfile $lastid;
-    seek($lastidfile, 0, SEEK_SET);
-    
-    my $dur = gettimeofday() - $start;
-
-    my $msg = sprintf("saved %d images in %.2f seconds. Sleeping for $sleep seconds...\n", $imgcount, $dur);
-
-    print_and_log($msg) if ($imgcount > 0);
-
-    sleep($sleep);
-
+open ($statefile, ">", "tweetimg.state") or die "couldn't open state file: $!\n";
+foreach my $slug (keys %state) {
+    print $statefile "$slug $state{$slug}\n";
 }
-
-
+close $statefile;
+print_and_log("finished run.");
 
 
 
@@ -251,7 +305,9 @@ sub grab_tweet_image {
     my $res = $ua->get($url);
 
     if (!$res->is_success) {
-        print_and_log("error downloading $url: $res->status_line");
+        my $errmsg = $res->status_line;
+        my $code = $res->code;
+        print_and_log("error downloading $url: $code - $errmsg");
         return 0;
     }
 
@@ -272,16 +328,16 @@ sub grab_tweet_image {
     }
 
     if (-e $imgname) {
-        print_and_log("not overwriting $imgname");
+        #print_and_log("Not overwriting $imgname");
         return 0;
     }
 
     open (my $fh, ">", $imgname)
         or do {
-            print_and_log("cannot open \"$imgname\" for writing: $!");
+            print_and_log("Cannot open \"$imgname\" for writing: $!");
             return 0;
         };
-    print_and_log("saving $url");
+    print_and_log("Saving $url");
 
     #save the url to the urlhash.
     $urlhash{$url} = 1;
@@ -311,7 +367,7 @@ sub grab_tweet_image {
 
 sub print_and_log ($) {
     my $msg = shift;
-    my $date = strftime "%Y-%m-%d-%H:%M:%S", localtime;
+    my $date = strftime "%Y-%m-%d_%H:%M:%S", localtime;
     chomp($msg);
     print $log "$date: $msg\n";
     print "$date: $msg\n";
