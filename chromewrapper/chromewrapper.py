@@ -27,8 +27,9 @@ class ChromeWrapper():
         if options == None:
             options = Options()
             options.add_argument('--headless')
-            options.add_argument('--mute-audio')
+            options.add_argument('--mute-audio')    # can really freak you out otherwise
             options.add_argument('--disable-gpu')
+            options.add_argument('window-size=1280,800') #
 
         # try to find the chromedriver binary
         if chromedriver_binary == None:
@@ -56,7 +57,6 @@ class ChromeWrapper():
         print("creating new chrome instance...") 
         options.binary_location = chrome_binary
         self._driver = webdriver.Chrome(executable_path=chromedriver_binary, chrome_options=options)
-        
         self._driverpid = self._driver.service.process.pid
 
     def __del__(self):
@@ -85,7 +85,10 @@ class ChromeWrapper():
         
         self._driver.set_window_size(1280,800)
         self._driver.get(url)
-         
+
+
+        # there's no "save screenshot to a variable,
+        # so we have to write it to disk and then read it back in. Gross!
         tempfn = "/tmp/chrome-scr.{}.png".format(random.randrange(10000))
 
         # if that file exists (highly unlikely), regenerate filename
@@ -101,41 +104,3 @@ class ChromeWrapper():
         
         return screenshot
 
-
-
-
-
-
-'''
-# setup
-p = subprocess.Popen(['killall', 'chromium-browser'])
-
-logging.basicConfig(level=logging.INFO,filename='zoneh-archive-cron.log',format='%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-logging.getLogger().addHandler(logging.StreamHandler())
-
-
-chrome_options = Options()
-chrome_options.add_argument('--headless')
-chrome_options.add_argument('--mute-audio')
-chrome_options.add_argument('--disable-gpu')
-chrome_options.binary_location = '/usr/bin/chromium-browser'
-
-
-
-
-
-logging.info("starting webdriver...")
-
-# chromedriver executable needs to be in the same folder as this python script
-driver = webdriver.Chrome(executable_path=os.path.abspath("chromedriver"), chrome_options=chrome_options)
-#driver.get("https://duo.com/blog/driving-headless-chrome-with-python")
-#driver.save_screenshot('test.png')
-
-
-
-logging.info("finished all links. exiting...")
-driver.close()
-driver.quit()
-exit()
-
-'''
