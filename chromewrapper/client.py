@@ -10,7 +10,7 @@ url = sys.argv[1]
 
 print(url)
 
-ret = requests.post('http://127.0.0.1:5001/scrn/', data={'url':url})
+ret = requests.post('http://127.0.0.1:5001/scrn/', json={'url':url})
 
 j = ret.json()
 

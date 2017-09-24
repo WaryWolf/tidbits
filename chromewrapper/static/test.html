@@ -1,0 +1,75 @@
+<!DOCTYPE html> <meta charset="UTF-8"> 
+<html>
+<head>
+<meta charset="UTF-8"> 
+<title>help what am i doing</title>
+</head>
+<body>
+    <script src="/static/moon.js"></script>
+    <script src="/static/axios.min.js"></script>
+    
+    <div id="app1">
+        <textarea m-on:input="update">Put a URL here!</textarea>
+        <button m-on:click="fetchsrc">get url source</button>
+        <button m-on:click="fetchimg">get url screenshot</button>
+        <img src="data:image/png;base64,{{imgdata}}">
+        <p><pre>{{urlout}}</pre></p>
+    </div>
+
+   
+
+    <script>
+        // Our Code Goes Here
+        const app1 = new Moon({
+            el: "#app1",
+            data: {
+                urlin: "nothin",
+                urlout: "source will appear here",
+                imgdata: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+            },
+            methods: {
+				update: function(evt) {
+					this.set('urlin', evt.target.value);
+				},
+				fetchsrc: function() {
+					this.set('urlout', 'Loading...');
+					urlin = this.get('urlin');
+					console.log('getting ' + urlin);
+					self = this;
+					
+					axios.post('/source/', {
+						url: urlin
+					}).then(function (response) {
+						self.set('urlout', response.data.payload);
+                        //console.log(response.data.payload);
+
+					}).catch(function (error) {
+                        self.set('urlout', "Error, see console");
+						console.log(error);
+					});
+				},
+                fetchimg: function() {
+                    this.set('urlout', 'Loading...');
+                    urlin = this.get('urlin');
+                    console.log('getting ' + urlin);
+					self = this;
+                    
+					axios.post('/scrn/', {
+						url: urlin
+					}).then(function (response) {
+						self.set('imgdata', response.data.payload);
+                        //console.log(response.data.payload);
+
+					}).catch(function (error) {
+                        self.set('urlout', "Error, see console");
+						console.log(error);
+					});
+                }
+			}
+        });
+    </script>
+
+</body>
+
+
+</html>

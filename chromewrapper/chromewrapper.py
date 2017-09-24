@@ -7,11 +7,11 @@ from time import strftime, gmtime
 import logging
 import subprocess
 import signal
-import psutil
 import shutil
 import random
 
 # 3rd party imports
+#import psutil
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
