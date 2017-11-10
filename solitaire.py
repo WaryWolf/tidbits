@@ -1,7 +1,9 @@
 #!/usr/bin/python3
 
 
-# I am drunk and on a plane and I felt like writing a solitaire solver in python. Too bad it'll take me a lot longer than the duration of this flight to finish it, but maybe i can finish it this time...
+# I am drunk and on a plane and I felt like writing a solitaire solver in python. 
+# Too bad it'll take me a lot longer than the duration of this flight to finish it,
+# but maybe i can finish it this time...
 
 # GLOSSARY OF TERMS:
 
@@ -11,9 +13,8 @@
 # "Collection" = the four slots at the top of the screen where cards can be stored. The objective of the game is to store 
 # "Pool" = the bunch of "spare" cards at the top right of the screen (sometimes top left...) that player shuffle through in order to progress the game. 
 
-
 # GAME RULES:
-#
+
 # At the start of the game there should be 28 cards in the seven piles. 21 of these should be face-down.
 # There should be (52 - 28) 24? cards in the pool.
 
@@ -29,18 +30,27 @@
 import os
 import sys
 import random
+import logging
+
+DEFAULT_LOGGING_FORMAT = '[%(levelname)s] %(message)s'
+
+log = logging.Logger("solitaire", level=logging.DEBUG)
+handler = logging.StreamHandler()
+formatter = logging.Formatter(DEFAULT_LOGGING_FORMAT)
+handler.setFormatter(formatter)
+log.addHandler(handler)
 
 
 # I haven't written a python class in like 7 years
 
-class Collection:
+class Collection(object):
 
     def __init__(self):
         self.coll = []
         self.suit = ''
 
     def __repr__(self):
-        return self.pool.__repr__()
+        return self.coll.__repr__()
 
     def __str__(self):
         return self.coll.__str__()
@@ -52,9 +62,9 @@ class Collection:
         if len(self.coll) == 0:
 
             # only an Ace can start a collection.
-            if cards[card]['rank'] == 1:
+            if card.rank == 1:
                 self.coll.append(card)
-                self.suit = cards[card]['suit']
+                self.suit = card.suit
                 return True
             else:
                 return False
@@ -62,13 +72,13 @@ class Collection:
         else:
 
             # Early exit due to suit mismatch. Stay fashion conscious!
-            if cards[card]['suit'] != self.suit:
+            if card.suit != self.suit:
                 return False
 
             topcard = self.coll[-1]
 
-            if cards[card]['suit'] == cards[topcard]['suit']:
-                if cards[card]['rank'] == (cards[topcard]['rank'] + 1):
+            if card.suit == topcard.suit:
+                if card.rank == (topcard.rank + 1):
                     self.coll.append(card)
                     return True
 
@@ -118,20 +128,24 @@ class Collection:
 
 # thin layer on top of an array, try to treat it like a ring buffer or something?
 # only need to remove and show cards after initialisation, no need for insert operation.
+# There should only be 24 cards in the pool at any one time.
 # TODO add "draw-three" support (longterm)
-class Pool:
+class Pool(object):
 
     def __init__(self, poolcards):
 
         self.pool = []
         self.index = 0
 
+        #if len(poolcards) > 24:
+        #    except Exception("pool's full!")
 
         for card in poolcards:
             self.pool.append(card)
 
         # shuffle the pool after populating, just in case.
         random.shuffle(self.pool)
+        log.debug("created Pool instance with {} cards".format(len(self.pool)))
 
     def __repr__(self):
         return self.pool.__repr__()
@@ -186,7 +200,7 @@ class Pool:
     # TODO add "draw-three" support
     # Returns the value of the top card in the pool.
     # Returns False if the pool is empty.
-    def seetop(self):
+    def showtop(self):
 
         if len(self.pool) == 0:
             return False
@@ -197,22 +211,23 @@ class Pool:
         
 
 # I wonder if i should split up the face up and face down cards into their own objects, or even just their own storage inside this object. hmm. will ask more accomplished software developers.
-class Pile:
+class Pile(object):
 
     def __init__(self, pilecards):
 
         # each element of the internal list 'pile' is a list containing 2 elements:
-        # The first element is the card's index.
+        # The first element is a Card object.
         # The second element is a boolean which denotes whether the card is face up/visible.
         #
         # The "top" card in the pile, that the player can interact with, has index 0.
         self.pile = []
         
         for card in pilecards:
-            self.pile.append = [card, False]
+            self.pile.append([card, False])
 
         # make the topmost card visible.
         self.pile[0][1] = True
+        log.debug("created Pile instance with {} cards".format(len(self.pile)))
 
 
     def __repr__(self):
@@ -228,84 +243,162 @@ class Pile:
         if len(self.pile) == 0:
 
             # only a King can sit on top of a pile's stack.
-            if cards[card]['rank'] == 13:
-                self.coll.append([card, True])
+            if card.rank == 13:
+                self.pile.append([card, True])
                 return True
             else:
                 return False
 
         # to add a card to a pile, the colour must not match the topmost card, and the rank must be one less than the topmost card.
         else:
-            topcard = self.coll[0]
+            topcard = self.pile[0]
 
             # Early exit due to colour mismatch. Stay fashion conscious!
-            if cards[card]['colour'] == cards[topcard]['colour']:
+            if card.colour == topcard.colour:
                 return False
         
-            # XXX GOT UP TO HERE XXX
-            if cards[card]['rank'] == (cards[topcard]['rank'] - 1):
-                self.coll.append(card)
+            if card.rank == (topcard.rank - 1):
+                self.pile.append([card, True])
                 return True
 
             return False
 
 
-    # Try to pop out a card from the collection.
+    # Try to pop out a card from the pile.
     # Return the card if successful
     # Return False if not successful
     def pop(self):
-        if len(self.coll) == 0:
+        if len(self.pile) == 0:
             return False
 
         else:
-            return self.coll.pop()
+            return self.pile.pop()[0]
 
 
-    # Return the top card in the collection.
-    # Return false if collection is empty.
+    # Return the top card in the pile, but do not alter the pile.
+    # Return false if pile is empty.
     def showtop(self):
-        if len(self.coll) == 0:
+        if len(self.pile) == 0:
             return False
         else:
-            topcard = self.coll[-1]
-            return topcard
+            topcard = self.pile[-1]
+            return topcard[0]
 
 
-    # Return size (length) of the collection.
+    # Return size (length) of the pile.
     def size(self):
-        return len(self.coll)
+        return len(self.pile)
 
 
-    # Return "Full-ness" of the collection.
-    # A collection is "Full" if it has all 13 cards in the deck in it.
-    def isFull(self):
-        if len(self.coll) == 13:
+    # Return "topped-ness" of the pile.
+    # A pile is "topped" if the first visible card is a King.
+    def isTopped(self):
+        for c in self.pile:
+            if c[1] == True:
+                if c[0].rank == 13:
+                    return True
+                else:
+                    return False
+        return False
+
+
+    # Return "bottomed-ness" of the pile.
+    # A pile is "bottomed" if the last visible card is an Ace.
+    def isBottomed(self):
+        if self.pile[-1][0].rank == 1:
             return True
         else:
             return False
 
+
+    # Return emptiness of the pile.
     def isEmpty(self):
-        if len(self.coll) == 0:
+        if len(self.pile) == 0:
             return True
         else:
+            return False
 
 
-# some helper functions
+
+# A card in a standard 52 card deck.
+class Card(object):
+
+    # TODO add some kind of mechanism to ensure there's only one instance
+    # of each type of card in existence at any one time
+    def __init__(self, index):
+
+        if index < 1 or index > 52:
+            raise ValueError("bad card index!")
+
+        self.index = index
+        rank = cards[index]['rank']
+
+        if rank == 11:
+            rank = "J"
+        elif rank == 12:
+            rank = "Q"
+        elif rank == 13:
+            rank = "K"
+        else:
+            rank = str(rank)
+
+        # TODO add colours to this (how do colours work in python???)
+        self.str = "{}{}".format(rank,cards[index]['suit'])
+        self.rank = cards[index]['rank']
+        self.suit = cards[index]['suit']
+        self.colour = cards[index]['colour']
+        self.name = cards[index]['name']
+
+    def __str__(self):
+        return self.str.__str__()
+
+    def __repr__(self):
+        return self.str.__repr__()
 
 
-# returns true if carda can be "Stacked" on cardb.
-def isValidStack(carda, cardb):
-    
-    arank = cards[carda]['rank']
-    brank = cards[cardb]['rank']
+    # Return True if given card can stack on top of this card (in a stack).
+    # Otherwise return False.
+    def canStack(card):
+        if self.rank == (card.rank + 1) and self.colour != card.colour:
+            return True
+        else:
+            return False
 
-    acolour = cards[carda]['colour']
-    bcolour = cards[cardb]['colour']
 
-    if arank == (brank - 1) and acolour != bcolour:
-        return True
-    else:
-        return False
+
+# A solitaire game. Contains a deck, split among four collections, seven piles, and a pool.
+class Solitaire(object):
+
+    def __init__(self):
+        mdeck = [Card(x) for x in range(1,53)]
+
+        print(str(mdeck))
+        
+        # always shuffle the deck.
+
+        random.shuffle(mdeck)
+
+        log.debug("creating pool")
+        poolc = []
+        while len(poolc) < 24:
+            poolc.append(mdeck.pop())
+        self.pool = Pool(poolc)
+
+        log.debug("creating collections")
+        self.collections = []
+        for i in range(0,4):
+            self.collections.append(Collection())
+
+        log.debug("creating piles")
+        self.piles = []
+        for i in range(1,8):
+            #log.debug("creating a pile of size {}. {} cards left in the deck".format(i, len(mdeck)))
+            pilec = []
+            while len(pilec) != i:
+                pilec.append(mdeck.pop())
+            self.piles.append(Pile(pilec))
+        log.debug("{} cards left in the deck to distribute.".format(len(mdeck)))
+
 
 
 
@@ -378,7 +471,6 @@ cards = {
             'colour': 'B',
             'suit': 'C'
         },
-
 # Spades
     14: {   'name': 'Ace of Spades',
             'rank': 1,
@@ -582,10 +674,10 @@ cards = {
 
 # suits because i realise i didn't put that before
 suits = {
-    'C': 'Clubs',
-    'S': 'Spades',
-    'D': 'Diamonds',
-    'H': 'Hearts'
+    'C': {'name':   'Clubs',        'colour': 'B'},
+    'S': {'name':   'Spades',       'colour': 'B'},
+    'D': {'name':   'Diamonds',     'colour': 'R'},
+    'H': {'name':   'Hearts',       'colour': 'R'}
 }
 
 
