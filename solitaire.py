@@ -313,8 +313,12 @@ class Pile(object):
             return False
 
         else:
-            self.pile[-2][1] = True
-            return self.pile.pop()[0]
+            card = self.pile.pop()[0]
+            
+            if len(self.pile) > 0:
+                self.pile[-1][1] = True
+            
+            return card
 
 
     # Return the top card in the pile, but do not alter the pile.
@@ -369,7 +373,7 @@ class Card(object):
     # of each type of card in existence at any one time
     def __init__(self, index):
 
-        if index < 1 or index > 52:
+        if index < 1 or index > 53:
             raise ValueError("bad card index!")
 
         self.index = index
@@ -633,7 +637,7 @@ cards = {
     35: {   'name': 'Nine of Diamonds',
             'rank': 9,
             'colour': 'R',
-            'suit': 'd'
+            'suit': 'D'
         },
     36: {   'name': 'Ten of Diamonds',
             'rank': 10,
@@ -720,6 +724,12 @@ cards = {
             'rank': 13,
             'colour': 'R',
             'suit': 'H'
+        },
+    # "wildcard" used because i'm a bad coder.
+    53: {   'name': 'Joker',
+            'rank': 999,
+            'colour': 'G',
+            'suit': 'J'
         }
 }
 
