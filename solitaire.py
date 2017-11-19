@@ -7,6 +7,8 @@
 
 # GLOSSARY OF TERMS:
 
+# TODO: rename Pool to Stock/Waste, Collection to Foundation, Stack to Tableau.
+
 # "Deck" = the set of 52 cards that make up all of the cards in the game.
 # "Pile" = the seven arrangements of cards at the bottom of the screen. At the start of the game only one card is visible on each pile.
 # "Stack" = the part of the pile that is face up. Must have alternating colours and descending ranks for each card.
@@ -34,7 +36,8 @@ import logging
 
 DEFAULT_LOGGING_FORMAT = '[%(levelname)s] %(message)s'
 
-log = logging.Logger("solitaire", level=logging.DEBUG)
+#log = logging.Logger("solitaire", level=logging.DEBUG)
+log = logging.Logger("solitaire", level=logging.INFO)
 handler = logging.StreamHandler()
 formatter = logging.Formatter(DEFAULT_LOGGING_FORMAT)
 handler.setFormatter(formatter)
@@ -53,7 +56,11 @@ class Collection(object):
         return self.coll.__repr__()
 
     def __str__(self):
-        return self.coll.__str__()
+        #return self.coll.__str__()
+        rstr = ""
+        for c in self.coll:
+            rstr += "{} ".format(c)
+        return rstr
 
     # Try to push a card onto the collection. 
     # Return True if successful.
@@ -151,7 +158,11 @@ class Pool(object):
         return self.pool.__repr__()
 
     def __str__(self):
-        return self.pool.__str__()
+        rstr = ""
+        for c in self.pool:
+            rstr += "{} ".format(c)
+        return rstr
+        #return self.pool.__str__()
 
     def isEmpty(self):
         if len(self.pool) == 0:
@@ -171,10 +182,15 @@ class Pool(object):
 
         else:
             popcard = self.pool.pop(self.index)
+
+            # if we pop off the last card in the pool,
+            # need to show the previous one.
+            if self.index > (len(self.pool) - 1):
+                self.index -= 1
+
             return popcard
         
-    # not a "shuffle" in a sorting/order sense, but the action 
-    # the player takes when finding more cards in the pool.
+    # the action the player takes when finding more cards in the pool.
     # Return the value of the new "top" card in the pool.
     # Return False if pool is empty.
     # Note that this does not "pop" the card out - that is a separate operation.
@@ -186,13 +202,17 @@ class Pool(object):
         else:
             # TODO double-check this logic...
             if self.index == (len(self.pool) - 1):
+                log.debug("Pool (size {}) exhausted. wrapping around".format(len(self.pool)))
                 self.index = 0
 
             else:
                 self.index += 1
 
-            topcard = self.pool[self.index]
-
+            try:
+                topcard = self.pool[self.index]
+            except IndexError:
+                print("pool.advance failed. index was {} and len of pool was {}".format(self.index, len(self.pool)))
+                exit(5)
             return topcard
 
 
@@ -208,12 +228,16 @@ class Pool(object):
         else:
             topcard = self.pool[self.index]
             return topcard
-        
+
+
+    def size(self):
+        return len(self.pool)        
 
 # I wonder if i should split up the face up and face down cards into their own objects, or even just their own storage inside this object. hmm. will ask more accomplished software developers.
+# YES FIX IT XXX TODO
 class Pile(object):
 
-    def __init__(self, pilecards):
+    def __init__(self, pilecards, index):
 
         # each element of the internal list 'pile' is a list containing 2 elements:
         # The first element is a Card object.
@@ -221,12 +245,13 @@ class Pile(object):
         #
         # The "top" card in the pile, that the player can interact with, has index 0.
         self.pile = []
-        
+        self.index = index
+
         for card in pilecards:
             self.pile.append([card, False])
 
         # make the topmost card visible.
-        self.pile[0][1] = True
+        self.pile[-1][1] = True
         log.debug("created Pile instance with {} cards".format(len(self.pile)))
 
 
@@ -234,34 +259,50 @@ class Pile(object):
         return self.pile.__repr__()
 
     def __str__(self):
-        return self.pile.__str__()
+        rstr = ""
+        for card in self.pile:
+            if card[1] == False:
+                rstr += "[{}] ".format(str(card[0]))
+            else:
+                rstr += "{} ".format(str(card[0]))
+        return rstr
+        #return self.pile.__str__()
 
     # Try to push a card onto the pile. 
     # Return True if successful.
     # Return False if card is not valid for pushing.
     def push(self, card):
+        if self.canPush(card):
+            self._do_push(card)
+            return True
+        else:
+            return False
+
+    # Check to see if a card can be pushed onto the pile/stack.
+    def canPush(self, card):
         if len(self.pile) == 0:
 
             # only a King can sit on top of a pile's stack.
             if card.rank == 13:
-                self.pile.append([card, True])
                 return True
             else:
                 return False
 
         # to add a card to a pile, the colour must not match the topmost card, and the rank must be one less than the topmost card.
         else:
-            topcard = self.pile[0]
+            topcard = self.pile[-1][0]
 
             # Early exit due to colour mismatch. Stay fashion conscious!
             if card.colour == topcard.colour:
                 return False
         
             if card.rank == (topcard.rank - 1):
-                self.pile.append([card, True])
                 return True
 
             return False
+
+    def _do_push(self, card):
+        self.pile.append([card, True])
 
 
     # Try to pop out a card from the pile.
@@ -272,6 +313,7 @@ class Pile(object):
             return False
 
         else:
+            self.pile[-2][1] = True
             return self.pile.pop()[0]
 
 
@@ -371,11 +413,8 @@ class Solitaire(object):
 
     def __init__(self):
         mdeck = [Card(x) for x in range(1,53)]
-
-        print(str(mdeck))
         
         # always shuffle the deck.
-
         random.shuffle(mdeck)
 
         log.debug("creating pool")
@@ -396,10 +435,23 @@ class Solitaire(object):
             pilec = []
             while len(pilec) != i:
                 pilec.append(mdeck.pop())
-            self.piles.append(Pile(pilec))
+            self.piles.append(Pile(pilec, i))
         log.debug("{} cards left in the deck to distribute.".format(len(mdeck)))
+        
+    def __str__(self):
+        rstr = "Pool:\n{}\n".format(str(self.pool))
+        rstr += "\nCollections:\n"
+
+        for coll in self.collections:
+            rstr += "{}\n".format(str(coll))
 
 
+        rstr += "\nPiles:\n"
+
+        for pile in self.piles:
+            rstr += "{}\n".format(pile)
+        
+        return rstr
 
 
 
