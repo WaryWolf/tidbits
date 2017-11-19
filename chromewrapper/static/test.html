@@ -10,10 +10,14 @@
     
     <div id="app1">
         <textarea m-on:input="update">Put a URL here!</textarea>
+        <p><pre>{{reqstatus}}</pre></p>
         <button m-on:click="fetchsrc">get url source</button>
         <button m-on:click="fetchimg">get url screenshot</button>
+        <select m-model="currentLink">
+            <option m-for="link in fetchedlinks" value="{{link}}">{{link}}</option>
+        </select>
         <img src="data:image/png;base64,{{imgdata}}">
-        <p><pre>{{urlout}}</pre></p>
+        <p><pre>{{urlsrc}}</pre></p>
     </div>
 
    
@@ -24,15 +28,17 @@
             el: "#app1",
             data: {
                 urlin: "nothin",
-                urlout: "source will appear here",
-                imgdata: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+                urlsrc: "source will appear here",
+                reqstatus: "Waiting for request",
+                imgdata: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                fetchedlinks: ['--']
             },
             methods: {
 				update: function(evt) {
 					this.set('urlin', evt.target.value);
 				},
 				fetchsrc: function() {
-					this.set('urlout', 'Loading...');
+					this.set('reqstatus', 'Loading...');
 					urlin = this.get('urlin');
 					console.log('getting ' + urlin);
 					self = this;
@@ -40,16 +46,16 @@
 					axios.post('/source/', {
 						url: urlin
 					}).then(function (response) {
-						self.set('urlout', response.data.payload);
-                        //console.log(response.data.payload);
+						self.set('urlsrc', response.data.payload.source);
+						self.set('fetchedlinks', response.data.payload.links);
 
 					}).catch(function (error) {
-                        self.set('urlout', "Error, see console");
+                        self.set('reqstatus', "Error, see console");
 						console.log(error);
 					});
 				},
                 fetchimg: function() {
-                    this.set('urlout', 'Loading...');
+                    this.set('reqstatus', 'Loading...');
                     urlin = this.get('urlin');
                     console.log('getting ' + urlin);
 					self = this;
@@ -61,7 +67,7 @@
                         //console.log(response.data.payload);
 
 					}).catch(function (error) {
-                        self.set('urlout', "Error, see console");
+                        self.set('reqstatus', "Error, see console");
 						console.log(error);
 					});
                 }
