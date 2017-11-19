@@ -1,0 +1,125 @@
+<!DOCTYPE html> <meta charset="UTF-8"> 
+<html>
+<head>
+<meta charset="UTF-8"> 
+<title>MalTools</title>
+</head>
+<body>
+    <script src="/static/moon.js"></script>
+    <script src="/static/axios.min.js"></script>
+    
+    <div id="maltoolsapp">
+        <text-component></text-component>
+        <fangcomponent></fangcomponent>
+    </div>
+
+    <script>
+        Moon.component("fangcomponent", {
+            template: `<div id="fangcomponent"><input type="text" m-model="fangtext"/>
+                       <button m-on:click="defang">Defang</button> 
+                       <button m-on:click="refang">Refang</button></div>`,
+            data: function() {
+                return {
+                    fangtext: "Put a URL here"
+                }
+            },
+            methods: {
+				defang: function() {
+					//this.set('urlout', 'Loading...');
+					textin = this.get('fangtext');
+					self = this;
+					
+					axios.post('/defang/', {
+						url: textin
+					}).then(function (response) {
+						//self.settext(response.data.payload);
+                        //console.log(response.data.payload);
+                        if (response.data.result !== 'Success') {
+                            self.set('fangtext', response.data.reason);
+                        } else {
+                            self.set('fangtext', response.data.payload);
+                        }
+					}).catch(function (error) {
+                        self.set('fangtext', "Error, see console");
+						console.log(error);
+					});
+                },
+				refang: function() {
+					textin = this.get('fangtext');
+					self = this;
+					
+					axios.post('/refang/', {
+						url: textin
+					}).then(function (response) {
+						//self.settext(response.data.payload);
+                        //console.log(response.data.payload);
+                        if (response.data.result !== 'Success') {
+                            self.set('fangtext', response.data.reason);
+                        } else {
+                            self.set('fangtext', response.data.payload);
+                        }
+					}).catch(function (error) {
+                        self.set('fangtext', "Error, see console");
+						console.log(error);
+					});
+				},
+            }
+        });
+
+        Moon.component("text-component", {
+            template: `<div><textarea m-model="text">{{text}}</textarea>
+                       <button m-on:click="toupper">Convert to uppercase</button> 
+                       <button m-on:click="tolower">Convert to lowercase</button></div>`,
+            data: function() {
+                return {
+                    text: "Put some text here"
+                }
+            },
+            methods: {
+                gettext: function() {
+                    return this.get("text");
+                },
+				toupper: function() {
+					//this.set('urlout', 'Loading...');
+					textin = this.get('text');
+					self = this;
+					
+					axios.post('/upper/', {
+						text: textin
+					}).then(function (response) {
+						//self.settext(response.data.payload);
+                        //console.log(response.data.payload);
+                        self.set('text', response.data.payload);
+					}).catch(function (error) {
+                        self.set('text', "Error, see console");
+						console.log(error);
+					});
+                },
+				tolower: function() {
+					textin = this.get('text');
+					self = this;
+					
+					axios.post('/lower/', {
+						text: textin
+					}).then(function (response) {
+						//self.settext(response.data.payload);
+                        //console.log(response.data.payload);
+                        self.set('text', response.data.payload);
+					}).catch(function (error) {
+                        self.set('text', "Error, see console");
+						console.log(error);
+					});
+				},
+            }
+        });
+
+        const app1 = new Moon({
+            el: '#maltoolsapp'
+        });
+
+    </script>
+
+</body>
+
+
+</html>
