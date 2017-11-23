@@ -66,12 +66,17 @@ class Collection(object):
     # Return True if successful.
     # Return False if card is not valid for pushing.
     def push(self, card):
+        if self.can_push(card):
+            self._do_push(card)
+            return True
+        else:
+            return False
+
+    def can_push(self, card):
         if len(self.coll) == 0:
 
             # only an Ace can start a collection.
             if card.rank == 1:
-                self.coll.append(card)
-                self.suit = card.suit
                 return True
             else:
                 return False
@@ -86,11 +91,15 @@ class Collection(object):
 
             if card.suit == topcard.suit:
                 if card.rank == (topcard.rank + 1):
-                    self.coll.append(card)
                     return True
 
             return False
 
+    def _do_push(self, card):
+        if len(self.coll) == 0:
+            self.suit = card.suit
+        
+        self.coll.append(card)
 
     # Try to pop out a card from the collection.
     # Return the card if successful
@@ -239,34 +248,33 @@ class Pile(object):
 
     def __init__(self, pilecards, index):
 
-        # each element of the internal list 'pile' is a list containing 2 elements:
-        # The first element is a Card object.
-        # The second element is a boolean which denotes whether the card is face up/visible.
-        #
-        # The "top" card in the pile, that the player can interact with, has index 0.
-        self.pile = []
+        # hidden is a list of face-down cards at the bottom of the pile.
+        # visible is a list of face-up cards at the top of the pile.
+        # there should always be at least one visible card, unless the entire pile is empty.
+        # cards should be moved from hidden to visible when visible is emptied.
+        self.hidden = []
+        self.visible = []
+        # each pile has an index, used to differentiate piles
         self.index = index
 
         for card in pilecards:
-            self.pile.append([card, False])
+            self.hidden.append(card)
 
         # make the topmost card visible.
-        self.pile[-1][1] = True
-        log.debug("created Pile instance with {} cards".format(len(self.pile)))
+        self.visible.append(self.hidden.pop())
+        log.debug("created Pile instance with {} cards".format(len(self.hidden) + len(self.visible)))
 
 
     def __repr__(self):
-        return self.pile.__repr__()
+        return self.__str__()
 
     def __str__(self):
         rstr = ""
-        for card in self.pile:
-            if card[1] == False:
-                rstr += "[{}] ".format(str(card[0]))
-            else:
-                rstr += "{} ".format(str(card[0]))
+        for card in self.hidden:
+            rstr += "[{}] ".format(str(card))
+        for card in self.visible:
+            rstr += "{} ".format(str(card))
         return rstr
-        #return self.pile.__str__()
 
     # Try to push a card onto the pile. 
     # Return True if successful.
@@ -280,9 +288,9 @@ class Pile(object):
 
     # Check to see if a card can be pushed onto the pile/stack.
     def canPush(self, card):
-        if len(self.pile) == 0:
+        if len(self.visible) == 0:
 
-            # only a King can sit on top of a pile's stack.
+            # only a King can sit on top of a pile's visible cards.
             if card.rank == 13:
                 return True
             else:
@@ -290,7 +298,7 @@ class Pile(object):
 
         # to add a card to a pile, the colour must not match the topmost card, and the rank must be one less than the topmost card.
         else:
-            topcard = self.pile[-1][0]
+            topcard = self.visible[-1]
 
             # Early exit due to colour mismatch. Stay fashion conscious!
             if card.colour == topcard.colour:
@@ -302,21 +310,22 @@ class Pile(object):
             return False
 
     def _do_push(self, card):
-        self.pile.append([card, True])
+        self.visible.append(card)
 
 
     # Try to pop out a card from the pile.
     # Return the card if successful
     # Return False if not successful
     def pop(self):
-        if len(self.pile) == 0:
+        if len(self.visible) == 0:
             return False
 
         else:
-            card = self.pile.pop()[0]
-            
-            if len(self.pile) > 0:
-                self.pile[-1][1] = True
+            card = self.visible.pop()
+           
+            # flip over a face-down card if there are no face-up cards in the pile
+            if len(self.visible) == 0 and len(self.hidden) > 0:
+                self.visible.append(self.hidden.pop())
             
             return card
 
@@ -324,34 +333,48 @@ class Pile(object):
     # Return the top card in the pile, but do not alter the pile.
     # Return false if pile is empty.
     def showtop(self):
-        if len(self.pile) == 0:
+        if len(self.visible) == 0:
             return False
         else:
-            topcard = self.pile[-1]
-            return topcard[0]
+            return self.visible[-1]
+
+    # Return a tuple containing all of the visible cards in the pile.
+    # Return false if pile is empty.
+    def showall(self):
+        if len(self.visible) == 0:
+            return False
+        else:
+            return tuple(self.visible)
+
+    # Remove and return num cards from the visible pile.
+    # Return false if there are not that many cards in the visible pile.
+    def popmany(self, num):
+        if num > len(self.visible):
+            return False
+        else:
+            popped = []
+            for i in range(0,num):
+                popped.append(self.visible.pop())
+            return popped
 
 
     # Return size (length) of the pile.
     def size(self):
-        return len(self.pile)
+        return len(self.hidden) + len(self.visible)
 
 
     # Return "topped-ness" of the pile.
     # A pile is "topped" if the first visible card is a King.
     def isTopped(self):
-        for c in self.pile:
-            if c[1] == True:
-                if c[0].rank == 13:
-                    return True
-                else:
-                    return False
-        return False
-
+        if self.visible[0].rank == 13:
+            return True
+        else:
+            return False
 
     # Return "bottomed-ness" of the pile.
     # A pile is "bottomed" if the last visible card is an Ace.
     def isBottomed(self):
-        if self.pile[-1][0].rank == 1:
+        if self.visible[-1].rank == 1:
             return True
         else:
             return False
@@ -359,7 +382,7 @@ class Pile(object):
 
     # Return emptiness of the pile.
     def isEmpty(self):
-        if len(self.pile) == 0:
+        if len(self.visible) == 0:
             return True
         else:
             return False

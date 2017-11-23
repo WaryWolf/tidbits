@@ -52,6 +52,26 @@ def move_pile_collection(solitaire):
                     return topcard
     return False
 
+def move_pool_collection(solitaire):
+        poolsize = solitaire.pool.size()
+        for i in range(0,poolsize):
+            topcard = solitaire.pool.advance()
+            
+            for coll in s.collections:
+                if coll.can_push(topcard):
+                    coll.push(topcard)
+                    topcard2 = s.pool.pop()
+
+                    # quick check to make sure my logic is sound
+                    if topcard.index != topcard2.index:
+                        print("CHECK POOL-TO-COLLECTION LOGIC")
+                        exit(2)
+
+                    #print("Moved {} from the pool to a collection!".format(topcard))
+                    done = True
+                    progress = True
+                    break
+
 # Check to see if cards can be moved between piles. If a move is found,
 # perform the move and return the cards moved.
 def move_between_piles(solitaire): 
@@ -88,6 +108,8 @@ def solve_game(s):
     
     noprogresscount = 0
     movenum = 0
+
+    moves = {}
 
     # Endlessly loop over the available moves. Give up if we complete 3 loops
     # without any progress.
