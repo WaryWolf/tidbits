@@ -1,11 +1,14 @@
 #!flask/bin/python
-from flask import Flask, request, g, render_template, current_app, send_from_directory, jsonify
 
-import validators
 
 import json
 import base64
 import re
+
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlparse
+from flask import Flask, request, g, render_template, current_app, send_from_directory, jsonify
+import validators
 
 app = Flask(__name__, static_url_path='/static')
 
@@ -32,6 +35,12 @@ def ret_err(reason):
         return jsonify({'result': 'Error','reason': 'Server error'})
     else:
         return jsonify({'result': 'Error','reason': 'Unspecified error'})
+
+# helper function
+def getcves(text):    
+    cveregex = re.compile('CVE\\-[0-9]{4}\\-[0-9]{4,8}')
+
+    return cveregex.findall(text)
 
 
 # helper function
@@ -69,6 +78,18 @@ def lowercase():
     
     return jsonify({'result': 'Success', 'payload': text.lower()})
 
+@app.route('/upper/', methods=['POST'])
+def uppercase():
+
+    # fix to allow both application/x-www-form-urlencoded and application/json requests
+    data = form_or_json()
+
+    if 'text' not in data:
+        return ret_err('BADPARAMS')
+   
+    text = data['text']
+    
+    return jsonify({'result': 'Success', 'payload': text.upper()})
 
 @app.route('/defang/', methods=['POST'])
 def defang():
@@ -114,21 +135,36 @@ def refang():
 
     return jsonify({'result': 'Success', 'payload': url})
 
+@app.route('/geturls/', methods=['POST'])
+def geturls():
 
-
-@app.route('/upper/', methods=['POST'])
-def uppercase():
-
-    # fix to allow both application/x-www-form-urlencoded and application/json requests
     data = form_or_json()
 
     if 'text' not in data:
-        return ret_err('BADPARAMS')
-   
+        return ret_err('MISSINGPARAMS')
+
     text = data['text']
+
+    soup = BeautifulSoup(text, 'lxml')
+
+    ret = []
+    for link in soup.find_all('a'):
+        try:
+            link_href = link['href']
+        except KeyError:
+            continue
+        parsed_link = urlparse(link_href)
+        ret.append(link_href)
+
+        # construct full urls from relative links in the page
+        #if parsed_link.scheme == '' or parsed_link.netloc == '':
+        #    ret.append(urljoin(url,link_href))
+        #else:
+        #    ret.append(link_href)
     
-    return jsonify({'result': 'Success', 'payload': text.upper()})
-    
+    return jsonify({'result': 'Success', 'payload': ret})
+
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)

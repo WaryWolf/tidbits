@@ -1,6 +1,7 @@
 <!DOCTYPE html> <meta charset="UTF-8"> 
 <html>
 <head>
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css" integrity="sha384-PsH8R72JQ3SOdhVi3uxftmaW6Vc51MKb0q5P2rRUpPvrszuE4W1povHYgTpBfshb" crossorigin="anonymous">
 <meta charset="UTF-8"> 
 <title>MalTools</title>
 </head>
@@ -8,19 +9,121 @@
     <script src="/static/moon.js"></script>
     <script src="/static/axios.min.js"></script>
     
-    <div id="maltoolsapp">
+	<!--
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/js/bootstrap.min.js" integrity="sha384-alpBpkh1PFOepccYVYDB4do5UnbKysX5WZXm3XxPqe5iKTfUKjNkCk9SaVuEZflJ" crossorigin="anonymous"></script>
+	-->
+	<!--
+    <div id="maltoolsapp" class='container'>
+        <main role='main'>
+        <div id='col-md-4'>
+        <h3>Uppercase-lowercase switcher</h3>
         <text-component></text-component>
+        </div>
+        
+        <div id='col-md-4'>
+        <h3>URL defanger-refanger</h3>
         <fangcomponent></fangcomponent>
+        </div>
+        </main>
     </div>
+	-->
+    <div class="container"><!--
+      <header class="header clearfix">
+        <nav>
+          <ul class="nav nav-pills float-right">
+            <li class="nav-item">
+              <a class="nav-link active" href="#">Home <span class="sr-only">(current)</span></a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#">About</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#">Contact</a>
+            </li>
+          </ul>
+        </nav>
+        <h3 class="text-muted">MalTools</h3>
+      </header>
+		-->
+      <main role="main">
+
+        <div class="jumbotron">
+          <h1 class="display-3">MalTools - Simple Analysis</h1>
+          <p class="lead">This is a collection of simple tools to assist with analysing dodgy websites and HTML.</p>
+        </div>
+
+        <div class="row marketing" id="maltoolsapp">
+          <div class="col-lg-6">
+			<h3>Text Tools</h3>
+			<casecomponent></casecomponent>
+          </div>
+
+          <div class="col-lg-6">
+			<h3>URL Tools</h3>
+
+            <fangcomponent></fangcomponent>
+            <urllister></urllister>
+          </div>
+        </div>
+
+      </main>
+
+
 
     <script>
-        Moon.component("fangcomponent", {
-            template: `<div id="fangcomponent"><input type="text" m-model="fangtext"/>
-                       <button m-on:click="defang">Defang</button> 
-                       <button m-on:click="refang">Refang</button></div>`,
+        Moon.component("urllister", {
+            template: ` <div id='urllister'><h4>Parse URLs from HTML</h4>
+                        <p>HTML:<input type="text" m-model="urllisttext"></p>
+                        <button m-on:click="geturls">Get URLs</button> 
+                 	    <button m-on:click="clear">Clear HTML</button>
+                        <select name="urls" size="5" multiple>
+                            <option m-for="item in urllist">{{item}}</option>
+                        </select>
+                        </div>`,
             data: function() {
                 return {
-                    fangtext: "Put a URL here"
+                    urllisttext: "Put some HTML here",
+                    urlliststatus: "Ready to grab URLs!",
+                    urllistout: "",
+                    urllist: []
+                }
+            },
+            methods: {
+                clear: function() {
+                    this.set("urllisttext", "");
+                },
+				geturls: function() {
+					//this.set('urlout', 'Loading...');
+					textin = this.get('urllisttext');
+					self = this;
+					
+					axios.post('/geturls/', {
+						text: textin
+					}).then(function (response) {
+                        if (response.data.result !== 'Success') {
+                            self.set('urlliststatus', response.data.reason);
+                        } else {
+                            self.set('urllist', response.data.payload);
+                            self.set('urlliststatus', 'Success!');
+                        }
+					}).catch(function (error) {
+                        self.set('urlliststatus', "Error, see console");
+						console.log(error);
+					});
+                },
+            }
+        });
+
+
+        Moon.component("fangcomponent", {
+            template: `<div id='fangcom'><h4>Fang/Defang URLs</h4>
+                       <p>URL:<input type="text" m-model="fangtext">{{fangstatus}}</p>
+                       <button m-on:click="defang">Defang</button> 
+                 	   <button m-on:click="refang">Refang</button></div>`,
+            data: function() {
+                return {
+                    fangtext: "Put a URL here",
+                    fangstatus: "Ready to fang!"
                 }
             },
             methods: {
@@ -32,12 +135,11 @@
 					axios.post('/defang/', {
 						url: textin
 					}).then(function (response) {
-						//self.settext(response.data.payload);
-                        //console.log(response.data.payload);
                         if (response.data.result !== 'Success') {
-                            self.set('fangtext', response.data.reason);
+                            self.set('fangstatus', response.data.reason);
                         } else {
                             self.set('fangtext', response.data.payload);
+                            self.set('fangstatus', 'Defanged!');
                         }
 					}).catch(function (error) {
                         self.set('fangtext', "Error, see console");
@@ -51,12 +153,11 @@
 					axios.post('/refang/', {
 						url: textin
 					}).then(function (response) {
-						//self.settext(response.data.payload);
-                        //console.log(response.data.payload);
                         if (response.data.result !== 'Success') {
-                            self.set('fangtext', response.data.reason);
+                            self.set('fangstatus', response.data.reason);
                         } else {
                             self.set('fangtext', response.data.payload);
+                            self.set('fangstatus', 'Refanged!');
                         }
 					}).catch(function (error) {
                         self.set('fangtext', "Error, see console");
@@ -66,8 +167,9 @@
             }
         });
 
-        Moon.component("text-component", {
-            template: `<div><textarea m-model="text">{{text}}</textarea>
+        Moon.component("casecomponent", {
+            template: `<div id='casecom'><h4>Uppercase-Lowercase text</h4>
+					   <textarea m-model="text">{{text}}</textarea>
                        <button m-on:click="toupper">Convert to uppercase</button> 
                        <button m-on:click="tolower">Convert to lowercase</button></div>`,
             data: function() {
@@ -76,9 +178,6 @@
                 }
             },
             methods: {
-                gettext: function() {
-                    return this.get("text");
-                },
 				toupper: function() {
 					//this.set('urlout', 'Loading...');
 					textin = this.get('text');
