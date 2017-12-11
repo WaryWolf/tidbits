@@ -6,7 +6,7 @@ import validators
 import json
 import base64
 
-
+import bulkalize
 from chromewrapper import ChromeWrapper
 
 app = Flask(__name__, static_url_path='/static')
@@ -28,6 +28,9 @@ def ret_err(reason):
 
     if reason == 'BADPARAMS':
         return json.dumps({'result': 'Error','reason': 'Bad parameters'})
+    elif reason == 'DUNNO':
+        return json.dumps({'result': 'Error','reason': 'Unknown Error'})
+        
 
 # helper function
 def form_or_json():
@@ -96,9 +99,35 @@ def source():
     c = get_chromewrapper()
     urlsrc = c.get_url_source(url)
 
-    encoded_src = base64.b64encode(bytes(urlsrc, 'utf-8')).decode('utf-8')
+    #encoded_src = base64.b64encode(bytes(urlsrc, 'utf-8')).decode('utf-8')
+
+    links = bulkalize.get_all_links(urlsrc, url)
+
+    return json.dumps({'result': 'Success', 'payload': {'source': urlsrc, 'links': links}})
+
+@app.route('/links/', methods=['POST'])
+def get_links_url():
+
+    """
+    data = form_or_json()
     
-    return json.dumps({'result': 'Success', 'payload': urlsrc})
+
+    if 'url' not in data or not is_url(data['url']):
+        return ret_err('BADPARAMS')
+   
+    url = data['url']
+    """
+    jsonData = request.get_json()
+    url = jsonData['url']
+    print(url)
+
+    links = bulkalize.get_all_links_for_url_requests(url)
+
+    if not links:
+        return ret_err('DUNNO')
+
+    return json.dumps({'result': 'Success', 'payload': links})
+
 
 
 if __name__ == '__main__':
