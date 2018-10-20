@@ -48,9 +48,10 @@ log.addHandler(handler)
 
 class Collection(object):
 
-    def __init__(self):
+    def __init__(self, index):
         self.coll = []
         self.suit = ''
+        self.index = index
 
     def __repr__(self):
         return self.coll.__repr__()
@@ -172,6 +173,9 @@ class Pool(object):
             rstr += "{} ".format(c)
         return rstr
         #return self.pool.__str__()
+    
+    def __len__(self):
+        return len(self.pool)
 
     def isEmpty(self):
         if len(self.pool) == 0:
@@ -180,6 +184,8 @@ class Pool(object):
         else:
             return False
 
+    def size(self):
+        return len(self.pool)        
     # try to pull the current "top" card out of the pool. used when moving a card to another
     # play area.
     # Return the card if successful.
@@ -239,9 +245,6 @@ class Pool(object):
             return topcard
 
 
-    def size(self):
-        return len(self.pool)        
-
 # I wonder if i should split up the face up and face down cards into their own objects, or even just their own storage inside this object. hmm. will ask more accomplished software developers.
 # YES FIX IT XXX TODO
 class Pile(object):
@@ -281,7 +284,17 @@ class Pile(object):
     # Return False if card is not valid for pushing.
     def push(self, card):
         if self.canPush(card):
-            self._do_push(card)
+            self._dopush(card)
+            return True
+        else:
+            return False
+
+    def pushMany(self, cards):
+        if len(cards) + len(self.visible) > 13:
+            return False
+
+        if self.canPush(cards[0]):
+            self._dopush_many(cards)
             return True
         else:
             return False
@@ -309,9 +322,14 @@ class Pile(object):
 
             return False
 
-    def _do_push(self, card):
+
+    # "private" function to add a single card to the pile
+    def _dopush(self, card):
         self.visible.append(card)
 
+    # "private" function to add multiple cards to the pile
+    def _dopush_many(self, cards):
+        self.visible = self.visible + list(cards)
 
     # Try to pop out a card from the pile.
     # Return the card if successful
@@ -332,7 +350,7 @@ class Pile(object):
 
     # Return the top card in the pile, but do not alter the pile.
     # Return false if pile is empty.
-    def showtop(self):
+    def showTop(self):
         if len(self.visible) == 0:
             return False
         else:
@@ -340,7 +358,7 @@ class Pile(object):
 
     # Return a tuple containing all of the visible cards in the pile.
     # Return false if pile is empty.
-    def showall(self):
+    def showAll(self):
         if len(self.visible) == 0:
             return False
         else:
@@ -348,20 +366,27 @@ class Pile(object):
 
     # Remove and return num cards from the visible pile.
     # Return false if there are not that many cards in the visible pile.
-    def popmany(self, num):
+    def popMany(self, num):
         if num > len(self.visible):
             return False
         else:
             popped = []
             for i in range(0,num):
                 popped.append(self.visible.pop())
-            return popped
+
+            if len(self.visible) == 0 and len(self.hidden) > 0:
+                self.visible.append(self.hidden.pop())
+
+            return popped[::-1] # reverse list before returning
 
 
     # Return size (length) of the pile.
     def size(self):
         return len(self.hidden) + len(self.visible)
 
+    # Return size (length) of visible cards in the pile.
+    def visSize(self):
+        return len(self.visible)
 
     # Return "topped-ness" of the pile.
     # A pile is "topped" if the first visible card is a King.
@@ -396,7 +421,7 @@ class Card(object):
     # of each type of card in existence at any one time
     def __init__(self, index):
 
-        if index < 1 or index > 53:
+        if index < 1 or index > 52:
             raise ValueError("bad card index!")
 
         self.index = index
@@ -442,6 +467,7 @@ class Solitaire(object):
         mdeck = [Card(x) for x in range(1,53)]
         
         # always shuffle the deck.
+        # is this random enough?
         random.shuffle(mdeck)
 
         log.debug("creating pool")
@@ -452,8 +478,8 @@ class Solitaire(object):
 
         log.debug("creating collections")
         self.collections = []
-        for i in range(0,4):
-            self.collections.append(Collection())
+        for i in range(1,5):
+            self.collections.append(Collection(i))
 
         log.debug("creating piles")
         self.piles = []
@@ -466,17 +492,16 @@ class Solitaire(object):
         log.debug("{} cards left in the deck to distribute.".format(len(mdeck)))
         
     def __str__(self):
-        rstr = "Pool:\n{}\n".format(str(self.pool))
+        rstr = "Pool: {}\n{}\n".format(len(self.pool), str(self.pool))
         rstr += "\nCollections:\n"
 
         for coll in self.collections:
-            rstr += "{}\n".format(str(coll))
-
+            rstr += "{}: {}\n".format(coll.index, str(coll))
 
         rstr += "\nPiles:\n"
 
         for pile in self.piles:
-            rstr += "{}\n".format(pile)
+            rstr += "{}: {}\n".format(pile.index, pile)
         
         return rstr
 
