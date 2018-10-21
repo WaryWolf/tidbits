@@ -6,79 +6,83 @@ import solitaire
 
 import argparse
 
-# XXX UNUSED
-# adds a move to the list of moves made in a turn.
-def move_add(moves, movenum, card1, card2):
-
-    #print("card1 is {} and card2 is {}".format(type(card1), type(card2)))
-
-    if movenum not in moves:
-        moves[movenum] = []
-
-    if card1 == False:
-        card1 = solitaire.Card(53)
-
-    if card2 == False:
-        card2 = solitaire.Card(53)
-
-
-    moves[movenum].append((card1.index, card2.index))
-
 
 # this function checks to make sure that cards aren't just being swapped
 # back and forth between piles.
-def is_pile_thrashing(moves, movenum):
+def is_pile_thrashing(moves):
 
     # not enough moves to be thrashing yet
     if len(moves) <= 2:
         return False
 
     if None in moves[-3:]:
-        return False
+        return is_pile_thrashing_2(moves)
 
     move1 = moves[-1]
     move2 = moves[-2]
     move3 = moves[-3]
 
     if move1[0] == 'PiPi' and move2[0] == 'PiPi' and move3[0] == 'PiPi':
-        if (move1[1][0] == move3[1][0]) and (move1[1][1] == move3[1][1]):
+        #if (move1[1][0] == move3[1][0]) and (move1[1][1] == move3[1][1]):
+        if (move1[1][1] == move3[1][1]):
             return True
 
-
-    """
-    for index in range(2,5):
-        try: 
-            prevmove = moves[movenum - index]
-        except KeyError:
-            break
-
-        if (lastmove[0] == "PiPi") and (prevmove[0] == "PiPi"):
-            if (lastmove[1][0] == prevmove[1][1]) and (lastmove[1][1] == prevmove[1][0]):
-                print("pile thrashing detected: {} == {}".format(prevmov, prev2mov))
-                return True
-    """
+    #print("nah")
     return False
 
+def is_pile_thrashing_2(moves):
 
-def is_turn_duplicate(moves, movenum):
+    #print(moves)
 
-    try:
-        last_moves = moves[movenum - 1]
-        these_moves= moves[movenum]
-    except KeyError:
-        return False
+    move1 = moves[-1]
+    move2 = moves[-2]
+    move3 = moves[-3]
 
+    #if move1 == None or move3 == None:
+    #    return False
 
-    diff_moves = False
+    if move1 and move2:
+        if move1[0] == 'PiPi' and move2[0] == 'PiPi':
+            if move1[1][1] == move2[1][1]:
+                return True
 
-    for move in these_moves:
-        if diff_moves == True:
-            break
-        for lmove in last_moves:
-            if ((move[0] != lmove[0]) and (move[1] != lmove[1])) and ((move[1] != lmove[0]) and (move[0] != lmove[1])):
-                diff_moves = True
+    if move1 and move3:
+        if move1[0] == 'PiPi' and move2 == None and move3[0] == 'PiPi':
+            #print(moves)
+            #exit(1)
+            if (move1[1][1] == move3[1][1]):
+                #print("is3")
+                return True
 
-    return not diff_moves
+    if move2 and move3:
+        if move2[0] == 'PiPi' and move3[0] == 'PiPi':
+            if move2[1][1] == move3[1][1]:
+                return True
+
+    if move3 and (not move1 and not move2):
+        if len(moves) > 3:
+            move4 = moves[-4]
+            if move4 and move4[0] == 'PiPi':
+                #print("yes4")
+                if move4[1][1] == move3[1][1]:
+                    #print("is4")
+                    return True
+
+    elif move2 and (not move1 and not move3):
+        #print("yes3: {} {} {}".format(move1, move2, move3))
+        if len(moves) > 3:
+            move4 = moves[-4]
+            if move4 and move4[0] == 'PiPi':
+                #print("yes4")
+                if move4[1][1] == move2[1][1]:
+                    #print("is4")
+                    return True
+                if move1[1][1] == move4[1][1]:
+                    #print("is5")
+                    return True
+
+    #print("nah2: {}".format(moves[-4:]))
+    return False
 
 def move_pile_collection(solitaire, reveal_only=False):
 
@@ -243,18 +247,84 @@ def move_between_piles(solitaire, reveal_only=False):
     """
     return False
 
+
+# searches for aces and twos and moves them to collections if possible.
+def move_find_aces_twos(solitaire):
+
+    # quick check in case all the aces/twos have been found
+    donecount = 0
+    for coll in solitaire.collections:
+        if coll.size() > 2:
+            donecount += 1
+    if donecount == 4:
+        return False
+
+    poolsize = solitaire.pool.size()
+    for i in range(0,poolsize):
+        topcard = solitaire.pool.advance()
+        
+        if topcard.rank <= 2:
+            for coll in s.collections:
+                if coll.can_push(topcard):
+                    undercard = coll.showtop()
+                    coll.push(topcard)
+                    topcard2 = s.pool.pop()
+
+                    # XXX remove for speed
+                    if topcard.index != topcard2.index:
+                        print("CHECK POOL-TO-COLLECTION LOGIC")
+                        exit(2)
+
+                    #print("Moved {} from the pool to a collection!".format(topcard))
+                    #return topcard
+                    return ("PoC",(undercard, topcard))
+
+
+    for pile in solitaire.piles:
+        topcard = pile.showTop()
+        
+        if topcard and topcard.rank <= 2:
+            for coll in s.collections:
+                if coll.can_push(topcard):
+                    undercard = coll.showtop()
+                    coll.push(topcard)
+                    topcard2 = pile.pop()
+                    
+                    # XXX remove for speed
+                    if topcard.index != topcard2.index:
+                        print("CHECK PILE-TO-COLLECTION LOGIC")
+                        exit(2)
+
+                    #print("Moved {} from the pool to a collection!".format(topcard))
+                    #return topcard
+                    return ("PiC",(undercard, topcard))
+
+
+
+    return False
+
+    
+
+    
+
+# attempts to solve a single game of solitaire using brute-force "can i do this move?" tactics.
 def solve_game(s):
     
     moves = []
+    last_pipi = ""
 
+    movenum = 0
+    maxmove = 500
     # loop over the available moves. Give up if we complete 3 loops
     # without any progress.
-    for movenum in range(1,300):
+    #for movenum in range(1,maxmove):
+    while movenum <= maxmove:
 
-        #movenum += 1
+        movenum += 1
 
         # if the last 3 turns have resulted in no progress
         if moves[-3:] == [None, None, None]:
+            #print("no progress, giving up")
             break
 
         # invariant check: There should be 52 playing cards in the game at the start of each turn.
@@ -271,6 +341,11 @@ def solve_game(s):
         """
         RULE PRIORITY:
 
+        "special" moves:
+        - aces & 2s to collections (no need to be in piles)
+        - kings to empty piles (consider colour of existing stacks first?)
+
+
         "good" moves:
         1. pile -> pile, revealing cards (this should be your "default" choice IMO)
         2. pile -> collection, revealing cards
@@ -284,9 +359,16 @@ def solve_game(s):
         """
 
 
+        # special moves
+        move = move_find_aces_twos(s)
+        if move:
+            moves.append(move)
+            continue
+
+
+
         # Check to see if cards can be moved between piles to reveal new cards
         move = move_between_piles(s, True)
-        
         if move:
             moves.append(move)
             continue
@@ -298,14 +380,12 @@ def solve_game(s):
 
 
         # try moving between piles, but this time allow any number of cards to be shuffled around
-        if not is_pile_thrashing(moves, movenum):
+        if not is_pile_thrashing(moves):
             move = move_between_piles(s, False)
 
         if move:
             moves.append(move)
             continue
-
-
 
         # Check for cards that can be moved from the pool to collections or stacks.
         # Note: since this can lead to unwinnable situations, we only do this if there's been
@@ -328,21 +408,21 @@ def solve_game(s):
         if collcount == 52:
             #print("All 52 cards are in collections - we dun it baby!")
             #print(str(s))
-            return (True, 52)
+            return (True, 52, movenum)
         else:
             pass
             #print("Turn finished. {} cards in collections.".format(collcount))
 
         moves.append(None)
     
-
     # Game is unsolvable 
     #print(str(s))
+    #print(moves[-10:])
     collcount = 0
     for col in s.collections:
         collcount += col.size()
     #print("Game seems unsolvable. Giving up after {} moves and {} cards in collections!".format(movenum, collcount))
-    return (False, collcount)
+    return (False, collcount, movenum)
 
 
 if __name__ == '__main__':
@@ -370,17 +450,23 @@ if __name__ == '__main__':
     solvecount = 0
     colltotal = 0
     collbest = 0
+    turntotal = 0
+    turnbest = 99999
     for game in res:
         if game[0]:
             solvecount += 1
         
         colltotal += game[1]
+        turntotal += game[2]
         if game[1] > collbest:
             collbest = game[1]
+        if game[2] < turnbest:
+            turnbest = game[2]
 
+    turnavg = turntotal / float(count)
     collavg = colltotal / float(count)
 
-    print("of {} games, {} were solved successfully. Average of {} cards were moved to collections per game.".format(len(res), solvecount, collavg))
+    print("of {} games, {} were solved successfully. Average of {} turns taken per game. Average of {} cards were moved to collections per game.".format(len(res), solvecount, turnavg, collavg))
     if solvecount == 0:
         print("Best game had {} cards moved to collections.".format(collbest))
     print("Total time taken: {0:.3f} seconds. Average game duration: {1:.4f} seconds.".format(totaldur, avgdur))
