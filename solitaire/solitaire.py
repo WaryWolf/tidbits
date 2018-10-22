@@ -50,7 +50,7 @@ class Collection(object):
 
     def __init__(self, index):
         self.coll = []
-        self.suit = ''
+        self.suit = None
         self.index = index
 
     def __repr__(self):
@@ -102,6 +102,8 @@ class Collection(object):
         
         self.coll.append(card)
 
+    
+
     # Try to pop out a card from the collection.
     # Return the card if successful
     # Return False if not successful
@@ -122,6 +124,9 @@ class Collection(object):
             topcard = self.coll[-1]
             return topcard
 
+    # Return all cards in the collection.
+    def showall(self):
+        return self.coll
 
     # Return size (length) of the collection.
     def size(self):
@@ -244,9 +249,7 @@ class Pool(object):
             topcard = self.pool[self.index]
             return topcard
 
-
-# I wonder if i should split up the face up and face down cards into their own objects, or even just their own storage inside this object. hmm. will ask more accomplished software developers.
-# YES FIX IT XXX TODO
+# A Pile - I think these are more commonly known as tableaus.
 class Pile(object):
 
     def __init__(self, pilecards, index):
@@ -450,6 +453,7 @@ class Card(object):
         return self.str.__repr__()
 
 
+    
     # Return True if given card can stack on top of this card (in a stack).
     # Otherwise return False.
     def canStack(card):
@@ -506,6 +510,103 @@ class Solitaire(object):
         return rstr
 
 
+    # use to check if the game is finished
+    # be fast, not exhaustive: just make sure there are 52 cards in collections.
+    def isComplete(self):
+        return sum([c.size() for c in self.collections]) == 52
+    
+    # use to assert correctness in the game's current state.
+    # return True if no issues found with game's state.
+    # return False if any issues found.
+    def invariant_check(self):
+
+        # check number of cards in play
+        cardcount = 0
+        for p in self.piles:
+            cardcount += p.size()
+        for c in self.collections:
+            cardcount += c.size()
+        cardcount += self.pool.size()
+
+        if cardcount != 52:
+            log.error("Error: invariant check found {} cards in play".format(cardcount))
+            return False
+
+
+        # ensure only one instance of each card exists in the game
+        cardindex = {}
+        for i in range(1,53):
+            cardindex[i] = 0
+
+        for c in self.collections:
+            for card in c.coll:
+                cardindex[card.index] += 1
+
+        for p in self.piles:
+            for card in p.hidden:
+                cardindex[card.index] += 1
+            for card in p.visible:
+                cardindex[card.index] += 1
+        
+        for card in self.pool.pool:
+            cardindex[card.index] += 1
+
+        for card in cardindex:
+            if cardindex[card] != 1:
+                log.error("Error: invariant check found {} instances of {} in play".format(cardindex[card],cards[card]['name']))
+                print("1")
+                return False
+
+        # check validity of cards in collections - emptiness, one suit per collection, correct order
+        collsuits = []
+        for c in self.collections:
+            oc = c.coll
+            if c.isEmpty() and len(oc) != 0:
+                print("2")
+                return False
+
+            if not c.isEmpty and len(oc) == 0:
+                print("3")
+                return False
+           
+            # collection only has one suit
+            osuit = c.suit
+            for card in c.showall():
+                if card.suit != osuit:
+                    print("4")
+                    return False
+            
+            # suit appears once in all collections
+            if osuit and osuit in collsuits:
+                print("5")
+                return False
+            collsuits.append(osuit)
+           
+            # cards in collection have correct order
+            for index, card in enumerate(c.coll):
+                if card.rank != (index + 1):
+                    print("6")
+                    return False
+
+        # check validity of piles - visible cards (tableau) have correct order of rank and alternating colour
+        for p in self.piles:
+            cards = p.showAll()
+            if cards:
+                if len(cards) == 1:
+                    continue
+                for index, card in enumerate(cards):
+                    try:
+                        ncard = cards[index + 1]
+                    except IndexError:
+                        continue
+                    if card.rank != (ncard.rank + 1):
+                        print("7")
+                        return False
+                    if ((card.colour == 'B' and ncard.colour != 'R') or (card.colour == 'R' and ncard.colour != 'B')):
+                        return False
+
+
+        return True
 
 # lookup table of all the cards in a standard 52-card playing deck. Index is an integer because that's easy to work with.
 cards = {

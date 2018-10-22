@@ -10,21 +10,27 @@ So far I have implemented the following:
 `solitaire-client.py` is a simple brute-force solver that just loops through the various types of moves possible in a game of solitaire, and sees if there are any legal moves that can be made. It has a very rough priority system for the types of moves that should be made, and some logic to detect endless loops, but it's overall a very basic way to solve solitaire games. This solver currently has a ~4% solve rate, which is not great, but it can attempt ~150 games a second per core on an Intel i5-2500k, so at least it's fast.
 
 
+## DONE:
+
+* Implement complete solitaire representation
+* Implement a simple solver that can solve games
+* Add invariant and game-solved checks to Solitaire class
+
+
 ## TODO:
 
 #### Next:
 
-* Add invariant and game-solved checks to Solitaire class
 * Refactor bruteforce solver into its own file and set up work for different solvers to be implemented/benchmarked
-
+* Add deterministic mode to RNG, so changes can be benchmarked fairly and accurately
 
 #### Later:
 
-* Optimise Solitaire class
+* Optimise Solitaire class for speed
 * Parallelism (multiprocessing module seems like a good fit)
 * New solver implementation using scored move weightings and a proposal system (check all possible moves before committing)
 * Implement a save-rollback system on each move where multiple choices are available, and recursively try every possible combination in order to maximise solve rate
-
+* Reproduction functionality - add a Solitaire constructor that allows you to choose the layout of the cards 
 
 #### Never:
 
@@ -32,4 +38,5 @@ So far I have implemented the following:
 
 ## NOTES
 
-I use non-standard names for solitaire terms, since I started implementing this on a plane trip where I had no internet access, and the names have stuck. There's a reference in `solitaire.py`.
+* I use non-standard names for solitaire terms, since I started implementing this on a plane trip where I had no internet access, and the names have stuck. There's a reference in `solitaire.py`.
+* I haven't implemented any kind of limits, like "vegas rules" as I think it was called in windows XP.

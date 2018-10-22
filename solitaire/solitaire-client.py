@@ -327,15 +327,10 @@ def solve_game(s):
             #print("no progress, giving up")
             break
 
-        # invariant check: There should be 52 playing cards in the game at the start of each turn.
-        count = 0
-        for pile in s.piles:
-            count += pile.size()
-        for coll in s.collections:
-            count += coll.size()
-        count += s.pool.size()
-        if count != 52:
-            print("ERROR: {} cards in play! exiting!".format(count))
+        # invariant check to make sure something hasn't gone horribly wrong
+        # comment out for a decent speedup
+        if not s.invariant_check():    
+            print("ERROR: Invariant check failed!")
             exit(1)
        
         """
