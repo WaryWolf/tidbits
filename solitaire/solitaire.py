@@ -36,15 +36,12 @@ import logging
 
 DEFAULT_LOGGING_FORMAT = '[%(levelname)s] %(message)s'
 
-#log = logging.Logger("solitaire", level=logging.DEBUG)
 log = logging.Logger("solitaire", level=logging.INFO)
 handler = logging.StreamHandler()
 formatter = logging.Formatter(DEFAULT_LOGGING_FORMAT)
 handler.setFormatter(formatter)
 log.addHandler(handler)
 
-
-# I haven't written a python class in like 7 years
 
 class Collection(object):
 
@@ -467,11 +464,12 @@ class Card(object):
 # A solitaire game. Contains a deck, split among four collections, seven piles, and a pool.
 class Solitaire(object):
 
-    def __init__(self):
+    def __init__(self, seed=None):
         mdeck = [Card(x) for x in range(1,53)]
         
         # always shuffle the deck.
         # is this random enough?
+        random.seed(seed)
         random.shuffle(mdeck)
 
         log.debug("creating pool")

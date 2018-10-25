@@ -424,17 +424,25 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument("count", type=int, help="Number of games to run")
+    parser.add_argument("-d", "--deterministic", help="produce deterministic results", action="store_true", default=False)
     args = parser.parse_args()
     count = args.count
 
-
-    s = solitaire.Solitaire()
+    if args.deterministic:
+        seed = "SoLiTaIrE"
+    else:
+        seed = None
 
     res = []
 
     start = timer()
     for i in range(0,count):
-        s = solitaire.Solitaire()
+
+        if seed:
+            s = solitaire.Solitaire(seed=seed + str(i))
+        else:
+            s = solitaire.Solitaire()
+
         res.append(solve_game(s))
 
     end = timer()
