@@ -1,10 +1,11 @@
 #!/usr/bin/python3
 
 from timeit import default_timer as timer
+from multiprocessing import Pool
+import argparse
+
 
 import solitaire
-
-import argparse
 
 
 if __name__ == '__main__':
@@ -12,9 +13,12 @@ if __name__ == '__main__':
     solvers = ['bruteforce']
 
     parser = argparse.ArgumentParser()
+
     parser.add_argument("count", type=int, help="Number of games to run")
-    parser.add_argument("-d", "--deterministic", help="produce deterministic results", action="store_true", default=False)
     parser.add_argument("-s", "--solver", help="which solver module to use", type=str, choices=solvers)
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("-d", "--deterministic", help="produce deterministic results", action="store_true", default=False)
+    group.add_argument("-p", "--parallel", type=int, help="number of parallel processes to use", action="store", default=1)
     args = parser.parse_args()
     count = args.count
 
@@ -33,16 +37,28 @@ if __name__ == '__main__':
         exit(1)
 
     start = timer()
-    for i in range(0,count):
+    if args.parallel > 1:
+        jobs = []
+        with Pool(args.parallel) as p:
+            for i in range(0, count):
+                if seed:
+                    s = solitaire.Solitaire(seed=seed + str(i))
+                else:
+                    s = solitaire.Solitaire()
+                jobs.append(p.apply_async(solve_game, (s,)))
+            p.close()
+            p.join()
+            for job in jobs:
+                res.append(job.get(timeout=1))
+    else:
+        for i in range(0,count):
 
-        if seed:
-            s = solitaire.Solitaire(seed=seed + str(i))
-        else:
-            s = solitaire.Solitaire()
+            if seed:
+                s = solitaire.Solitaire(seed=seed + str(i))
+            else:
+                s = solitaire.Solitaire()
 
-        
-
-        res.append(solve_game(s))
+            res.append(solve_game(s))
 
     end = timer()
 

@@ -14,17 +14,18 @@ So far I have implemented the following:
 ## USAGE:
 
 ```
-usage: solitaire-client.py [-h] [-d] [-s {bruteforce}] count
+usage: solitaire-client.py [-h] [-s {bruteforce}] [-d | -p PARALLEL] count
 
 positional arguments:
   count                 Number of games to run
 
 optional arguments:
   -h, --help            show this help message and exit
-  -d, --deterministic   produce deterministic results
   -s {bruteforce}, --solver {bruteforce}
                         which solver module to use
-
+  -d, --deterministic   produce deterministic results
+  -p PARALLEL, --parallel PARALLEL
+                        number of parallel processes to use
 ```
 
 
@@ -35,17 +36,17 @@ optional arguments:
 * Add invariant and game-solved checks to Solitaire class
 * Refactor bruteforce solver into its own file and set up work for different solvers to be implemented/benchmarked
 * Add deterministic mode to RNG, so changes can be benchmarked fairly and accurately
-
+* Add parallelism with the multiprocessing library
 
 ## TODO:
 
 #### Next:
 
+* add a log of moves made to the Solitaire class
 
 #### Later:
 
 * Optimise Solitaire class for speed
-* Parallelism (multiprocessing module seems like a good fit)
 * New solver implementation using scored move weightings and a proposal system (check all possible moves before committing)
 * Implement a save-rollback system on each move where multiple choices are available, and recursively try every possible combination in order to maximise solve rate
 * Reproduction functionality - add a Solitaire constructor that allows you to choose the layout of the cards 
