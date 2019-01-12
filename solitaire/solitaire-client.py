@@ -8,6 +8,15 @@ import argparse
 import solitaire
 
 
+def seed_and_solve(f, seed):
+
+    if seed:
+        s = solitaire.Solitaire(seed=seed)
+    else:
+        s = solitaire.Solitaire()
+    return f(s)
+
+
 if __name__ == '__main__':
 
     solvers = ['bruteforce']
@@ -16,9 +25,8 @@ if __name__ == '__main__':
 
     parser.add_argument("count", type=int, help="Number of games to run")
     parser.add_argument("-s", "--solver", help="which solver module to use", type=str, choices=solvers)
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument("-d", "--deterministic", help="produce deterministic results", action="store_true", default=False)
-    group.add_argument("-p", "--parallel", type=int, help="number of parallel processes to use", action="store", default=1)
+    parser.add_argument("-d", "--deterministic", help="produce deterministic results", action="store_true", default=False)
+    parser.add_argument("-p", "--parallel", type=int, help="number of parallel processes to use", action="store", default=1)
     args = parser.parse_args()
     count = args.count
 
@@ -42,10 +50,8 @@ if __name__ == '__main__':
         with Pool(args.parallel) as p:
             for i in range(0, count):
                 if seed:
-                    s = solitaire.Solitaire(seed=seed + str(i))
-                else:
-                    s = solitaire.Solitaire()
-                jobs.append(p.apply_async(solve_game, (s,)))
+                    tseed = seed + str(i)
+                jobs.append(p.apply_async(seed_and_solve, (solve_game, tseed)))
             p.close()
             p.join()
             for job in jobs:
